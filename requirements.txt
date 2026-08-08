@@ -14,3 +14,11 @@ streamlit-folium
 plotly
 pandas
 pillow
+streamlit
+folium
+streamlit-folium
+plotly
+pandas
+pillow
+requests
+openai
