@@ -8,3 +8,9 @@ streamlit
 folium
 streamlit-folium
 plotly
+streamlit
+folium
+streamlit-folium
+plotly
+pandas
+pillow
