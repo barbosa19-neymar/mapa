@@ -22,3 +22,8 @@ pandas
 pillow
 requests
 openai
+streamlit
+folium
+streamlit-folium
+requests
+openai
