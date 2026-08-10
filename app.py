@@ -27,6 +27,25 @@ st.set_page_config(
 DEFAULT_LAT = -10.855
 DEFAULT_LON = -37.125
 
+PONTOS_HISTORICOS = [
+    {
+        "nome": "Shopping Prêmio",
+        "categoria": "História",
+        "descricao": "Importante ponto de referência de Nossa Senhora do Socorro. Foi anunciado em 2008 e concluído em 2011, sendo apresentado como o primeiro shopping center do município.",
+        "endereco": "Nossa Senhora do Socorro - SE",
+        "latitude": -10.846,
+        "longitude": -37.126
+    },
+
+    {
+        "nome": "Centro Histórico de Nossa Senhora do Socorro",
+        "categoria": "História",
+        "descricao": "Região ligada à formação histórica de Nossa Senhora do Socorro. A ocupação da região remonta ao período colonial e o núcleo foi elevado à categoria de vila em 1835.",
+        "endereco": "Centro, Nossa Senhora do Socorro - SE",
+        "latitude": -10.855,
+        "longitude": -37.126
+    }
+]
 # Raio de busca dos pontos comerciais
 RAIO_METROS = 8000
 
