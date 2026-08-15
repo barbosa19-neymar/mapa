@@ -6,6 +6,7 @@ import os
 import sqlite3
 from datetime import datetime
 from streamlit_folium import st_folium
+import plotly.express as px
 
 # ==========================================================
 # CONFIGURAÇÃO
@@ -22,9 +23,11 @@ st.set_page_config(
 # CONFIGURAÇÕES DO MAPA
 # ==========================================================
 
+# Região inicial do seu projeto
 DEFAULT_LAT = -10.855
 DEFAULT_LON = -37.125
 
+# Raio de busca dos pontos comerciais
 RAIO_METROS = 8000
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -58,25 +61,19 @@ st.markdown("""
     font-size: 13px;
 }
 
-.history-box {
-    background: #eee6f7;
+.ai-box {
+    background: linear-gradient(135deg, #173b57, #256d8f);
+    color: white;
     padding: 20px;
     border-radius: 16px;
-    margin-bottom: 15px;
-}
-
-.memory-box {
-    background: #e8f5e9;
-    padding: 20px;
-    border-radius: 16px;
-    margin-bottom: 15px;
+    margin-top: 15px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================================
-# BANCO DE DADOS
+# BANCO
 # ==========================================================
 
 def conectar():
@@ -200,6 +197,7 @@ def buscar_comercios_osm():
             latitude = item.get("lat")
             longitude = item.get("lon")
 
+            # Ways e relations possuem center
             if latitude is None:
 
                 center = item.get("center", {})
@@ -223,8 +221,11 @@ def buscar_comercios_osm():
             locais_osm.append({
 
                 "nome": nome,
+
                 "categoria": categoria,
+
                 "descricao": descricao,
+
                 "endereco": endereco,
 
                 "telefone": tags.get(
@@ -248,15 +249,14 @@ def buscar_comercios_osm():
                 ),
 
                 "latitude": float(latitude),
+
                 "longitude": float(longitude),
+
                 "avaliacao": 0
 
             })
 
-        # ==================================================
-        # REMOVER DUPLICADOS
-        # ==================================================
-
+        # Remove duplicados
         unicos = {}
 
         for local in locais_osm:
@@ -274,15 +274,11 @@ def buscar_comercios_osm():
     except Exception as e:
 
         st.error(
-            f"Não foi possível carregar os pontos: {e}"
+            f"Não foi possível carregar os pontos comerciais: {e}"
         )
 
         return []
 
-
-# ==========================================================
-# CLASSIFICAÇÃO
-# ==========================================================
 
 def classificar_categoria(tags):
 
@@ -330,10 +326,6 @@ def classificar_categoria(tags):
     return "Comércio"
 
 
-# ==========================================================
-# ENDEREÇO
-# ==========================================================
-
 def montar_endereco(tags):
 
     partes = []
@@ -361,10 +353,6 @@ def montar_endereco(tags):
     return ", ".join(partes)
 
 
-# ==========================================================
-# DESCRIÇÃO
-# ==========================================================
-
 def gerar_descricao_osm(
     nome,
     categoria,
@@ -372,53 +360,33 @@ def gerar_descricao_osm(
 ):
 
     if categoria == "Restaurante":
-
-        return (
-            f"{nome} é um estabelecimento "
-            "de gastronomia."
-        )
+        return f"{nome} é um estabelecimento de gastronomia."
 
     if categoria == "Loja":
-
         produto = tags.get("shop", "")
 
         if produto:
-
             return (
                 f"{nome} é um comércio "
                 f"classificado no OpenStreetMap "
                 f"como {produto}."
             )
 
-        return (
-            f"{nome} é um estabelecimento comercial."
-        )
+        return f"{nome} é um estabelecimento comercial."
 
     if categoria == "Hotel":
-
-        return (
-            f"{nome} é um estabelecimento "
-            "de hospedagem."
-        )
+        return f"{nome} é um estabelecimento de hospedagem."
 
     if categoria == "Cultura":
-
         return (
             f"{nome} é um local relacionado "
-            "à cultura ou ao turismo."
+            f"à cultura ou ao turismo."
         )
 
     if categoria == "Mercado":
+        return f"{nome} é um estabelecimento de comércio de alimentos."
 
-        return (
-            f"{nome} é um estabelecimento "
-            "de comércio de alimentos."
-        )
-
-    return (
-        f"{nome} é um estabelecimento "
-        "localizado na região."
-    )
+    return f"{nome} é um estabelecimento localizado na região."
 
 
 # ==========================================================
@@ -433,170 +401,8 @@ def carregar_pontos():
 
 locais_osm = carregar_pontos()
 
-
 # ==========================================================
-# PONTOS HISTÓRICOS
-# ==========================================================
-
-PONTOS_HISTORICOS = [
-
-    {
-        "nome": "Centro Histórico de Nossa Senhora do Socorro",
-
-        "categoria": "História",
-
-        "descricao": (
-            "Local ligado à formação histórica de "
-            "Nossa Senhora do Socorro. A região era "
-            "habitada por povos indígenas antes da "
-            "colonização portuguesa. Em 25 de setembro "
-            "de 1718, a localidade foi elevada à "
-            "categoria de freguesia."
-        ),
-
-        "endereco": (
-            "Centro, Nossa Senhora do Socorro - SE"
-        ),
-
-        "telefone": "",
-        "horario": "",
-        "site": "",
-        "imagem": "",
-
-        "latitude": -10.855,
-        "longitude": -37.125,
-
-        "avaliacao": 0
-    },
-
-    {
-        "nome": "Piabeta",
-
-        "categoria": "Memória Local",
-
-        "descricao": (
-            "Piabeta é um dos conjuntos habitacionais "
-            "de Nossa Senhora do Socorro. A origem "
-            "específica do nome Piabeta ainda não foi "
-            "confirmada em fonte histórica oficial "
-            "consultada."
-        ),
-
-        "endereco": (
-            "Piabeta, Nossa Senhora do Socorro - SE"
-        ),
-
-        "telefone": "",
-        "horario": "",
-        "site": "",
-        "imagem": "",
-
-        "latitude": -10.858,
-        "longitude": -37.126,
-
-        "avaliacao": 0
-    }
-
-]
-
-
-# ==========================================================
-# JUNTAR LOCAIS
-# ==========================================================
-
-locais = locais_osm + PONTOS_HISTORICOS
-
-
-# ==========================================================
-# FIGURAS HISTÓRICAS
-# ==========================================================
-
-FIGURAS_HISTORICAS = [
-
-    {
-        "nome": "Cacique Serigy",
-
-        "periodo": "Período anterior à colonização",
-
-        "descricao": (
-            "Cacique indígena associado ao território "
-            "onde atualmente está localizado "
-            "Nossa Senhora do Socorro. A história "
-            "oficial do município registra que as "
-            "terras eram dominadas por indígenas "
-            "da tribo do cacique Serigy."
-        ),
-
-        "observacao": (
-            "Figura histórica ligada ao território "
-            "do município. Não há comprovação de que "
-            "tenha sido morador de Piabeta."
-        )
-    },
-
-    {
-        "nome": "Dom Sebastião Monteiro da Vide",
-
-        "periodo": "Século XVIII",
-
-        "descricao": (
-            "Arcebispo da Bahia que, em 25 de setembro "
-            "de 1718, elevou a localidade à categoria "
-            "de freguesia, sob a invocação de Nossa "
-            "Senhora do Perpétuo Socorro do Tomar da "
-            "Cotinguiba."
-        ),
-
-        "observacao": (
-            "Figura histórica ligada à formação "
-            "religiosa e administrativa de Nossa "
-            "Senhora do Socorro. Não era morador "
-            "de Piabeta."
-        )
-    }
-
-]
-
-
-# ==========================================================
-# MORADORES ANTIGOS
-# ==========================================================
-
-MORADORES_ANTIGOS = [
-
-    {
-        "nome": "Morador antigo 1",
-
-        "descricao": (
-            "Espaço reservado para registrar a história "
-            "de um morador antigo de Piabeta."
-        ),
-
-        "observacao": (
-            "O nome deve ser preenchido após entrevista "
-            "ou consulta a uma fonte local confiável."
-        )
-    },
-
-    {
-        "nome": "Morador antigo 2",
-
-        "descricao": (
-            "Espaço reservado para registrar a história "
-            "de outro morador antigo de Piabeta."
-        ),
-
-        "observacao": (
-            "O nome deve ser preenchido após entrevista "
-            "ou consulta a uma fonte local confiável."
-        )
-    }
-
-]
-
-
-# ==========================================================
-# IA
+# IA OPENAI
 # ==========================================================
 
 def obter_chave_openai():
@@ -640,22 +446,44 @@ Nome: {local['nome']}
 Categoria: {local['categoria']}
 Descrição: {local['descricao']}
 Endereço: {local['endereco']}
+Telefone: {local['telefone']}
+Horário: {local['horario']}
+Site: {local['site']}
+Latitude: {local['latitude']}
+Longitude: {local['longitude']}
 """
 
         instrucoes = """
-Você é o Assistente Cultural do projeto
-Mapa Cultural.
+Você é a IA oficial do projeto Mapa Cultural.
 
-Responda em português do Brasil.
+Sua função é explicar informações sobre
+locais comerciais, culturais, turísticos e
+históricos.
 
-Não invente informações históricas.
+IMPORTANTE:
 
-Use somente informações fornecidas
-ou informações gerais que sejam seguras.
+- Não invente fatos históricos.
+- Se não houver informação suficiente,
+  diga claramente que não há dados históricos
+  disponíveis.
+- Diferencie fatos conhecidos de contexto geral.
+- Responda em português do Brasil.
+- Seja amigável e fácil de entender.
+- Quando o usuário perguntar sobre a história
+  de um estabelecimento, explique o que é possível
+  saber com os dados disponíveis.
+- Você pode explicar a importância cultural,
+  comercial ou turística de um local.
+"""
 
-Se não houver dados suficientes,
-diga claramente que não há informação
-disponível.
+        prompt = f"""
+DADOS DO LOCAL:
+
+{contexto}
+
+PERGUNTA DO USUÁRIO:
+
+{pergunta}
 """
 
         resposta = client.responses.create(
@@ -664,15 +492,8 @@ disponível.
 
             instructions=instrucoes,
 
-            input=f"""
-DADOS DO LOCAL:
+            input=prompt
 
-{contexto}
-
-PERGUNTA:
-
-{pergunta}
-"""
         )
 
         return resposta.output_text
@@ -694,10 +515,8 @@ st.markdown(
 )
 
 st.markdown(
-    "Explore **comércio, gastronomia, cultura, "
-    "história e memória de Nossa Senhora do Socorro**."
+    "Explore **comércio, gastronomia, cultura e turismo** da região."
 )
-
 
 # ==========================================================
 # SIDEBAR
@@ -707,14 +526,13 @@ st.sidebar.title(
     "🎛️ Explorar"
 )
 
-
-if locais:
+if locais_osm:
 
     categorias = sorted(
         list(
             set(
                 local["categoria"]
-                for local in locais
+                for local in locais_osm
             )
         )
     )
@@ -734,15 +552,12 @@ categorias_selecionadas = st.sidebar.multiselect(
 
 )
 
-
 st.sidebar.markdown("---")
-
 
 st.sidebar.info(
     "📍 Os pontos comerciais são carregados "
     "do OpenStreetMap."
 )
-
 
 if st.sidebar.button(
     "🔄 Atualizar pontos"
@@ -752,7 +567,6 @@ if st.sidebar.button(
 
     st.rerun()
 
-
 # ==========================================================
 # PESQUISA
 # ==========================================================
@@ -760,7 +574,6 @@ if st.sidebar.button(
 st.subheader(
     "🔎 Pesquisar"
 )
-
 
 with st.form(
     "pesquisa_form"
@@ -771,8 +584,8 @@ with st.form(
         "Pesquisar",
 
         placeholder=(
-            "Ex: restaurante, Piabeta, "
-            "história, loja..."
+            "Ex: restaurante, loja, "
+            "hotel, cultura..."
         ),
 
         label_visibility="collapsed"
@@ -786,20 +599,16 @@ with st.form(
 
 termo = pesquisa.lower().strip()
 
-
 resultados = []
 
-
-for local in locais:
+for local in locais_osm:
 
     if (
         categorias_selecionadas
         and local["categoria"]
         not in categorias_selecionadas
     ):
-
         continue
-
 
     texto = " ".join([
 
@@ -813,7 +622,6 @@ for local in locais:
 
     ]).lower()
 
-
     if (
         not termo
         or termo in texto
@@ -822,7 +630,6 @@ for local in locais:
         resultados.append(
             local
         )
-
 
 # ==========================================================
 # REGISTRAR PESQUISA
@@ -848,9 +655,7 @@ if pesquisar and termo:
     )
 
     conn.commit()
-
     conn.close()
-
 
 # ==========================================================
 # MÉTRICAS
@@ -858,14 +663,12 @@ if pesquisar and termo:
 
 col1, col2, col3, col4 = st.columns(4)
 
-
 with col1:
 
     st.metric(
         "📍 Pontos",
         len(resultados)
     )
-
 
 with col2:
 
@@ -878,7 +681,6 @@ with col2:
             )
         )
     )
-
 
 with col3:
 
@@ -897,32 +699,26 @@ with col3:
         )
     )
 
-
 with col4:
 
     st.metric(
-        "🏛️ História",
+        "🍴 Gastronomia",
         len(
             [
                 x for x in resultados
                 if x["categoria"]
-                in [
-                    "História",
-                    "Memória Local"
-                ]
+                == "Restaurante"
             ]
         )
     )
-
 
 # ==========================================================
 # MAPA
 # ==========================================================
 
 st.subheader(
-    "📍 Mapa Cultural"
+    "📍 Mapa de pontos comerciais"
 )
-
 
 if resultados:
 
@@ -952,7 +748,6 @@ mapa = folium.Map(
 
 )
 
-
 # ==========================================================
 # CORES
 # ==========================================================
@@ -960,10 +755,6 @@ mapa = folium.Map(
 cores = {
 
     "Cultura": "purple",
-
-    "História": "purple",
-
-    "Memória Local": "green",
 
     "Restaurante": "red",
 
@@ -980,7 +771,6 @@ cores = {
     "Comércio": "gray"
 
 }
-
 
 # ==========================================================
 # MARCADORES
@@ -1009,7 +799,6 @@ for local in resultados:
     telefone = html.escape(
         local["telefone"]
     )
-
 
     popup = f"""
 
@@ -1049,20 +838,6 @@ for local in resultados:
 
     """
 
-
-    if categoria == "História":
-
-        icone = "info-sign"
-
-    elif categoria == "Memória Local":
-
-        icone = "home"
-
-    else:
-
-        icone = "shopping-cart"
-
-
     folium.Marker(
 
         location=[
@@ -1075,3 +850,486 @@ for local in resultados:
         popup=folium.Popup(
             popup,
             max_width=350
+        ),
+
+        icon=folium.Icon(
+
+            color=cores.get(
+                categoria,
+                "blue"
+            ),
+
+            icon="shopping-cart"
+
+        )
+
+    ).add_to(mapa)
+
+
+st_folium(
+
+    mapa,
+
+    width=None,
+
+    height=600,
+
+    returned_objects=[]
+
+)
+
+# ==========================================================
+# IA GERAL
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader(
+    "🤖 Assistente Cultural"
+)
+
+st.write(
+    "Pergunte sobre um estabelecimento ou "
+    "local encontrado no mapa."
+)
+
+local_nomes = [
+    local["nome"]
+    for local in resultados
+]
+
+if local_nomes:
+
+    local_escolhido = st.selectbox(
+
+        "Escolha um local",
+
+        local_nomes
+
+    )
+
+    local_ia = next(
+
+        local for local in resultados
+
+        if local["nome"]
+        == local_escolhido
+
+    )
+
+    pergunta = st.text_area(
+
+        "O que você quer saber?",
+
+        placeholder=(
+            "Ex: Qual é a história deste local? "
+            "Qual a importância cultural dele? "
+            "O que esse estabelecimento oferece?"
+        )
+
+    )
+
+    if st.button(
+        "🤖 Perguntar à IA",
+        type="primary"
+    ):
+
+        if not pergunta.strip():
+
+            st.warning(
+                "Digite uma pergunta."
+            )
+
+        else:
+
+            with st.spinner(
+                "🤖 A IA está pesquisando..."
+            ):
+
+                resposta = perguntar_ia(
+                    local_ia,
+                    pergunta
+                )
+
+            st.markdown(
+                f"""
+                <div class="ai-box">
+
+                <h3>🤖 Resposta da IA</h3>
+
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            st.markdown(
+                resposta
+            )
+
+else:
+
+    st.info(
+        "Nenhum local encontrado para consultar."
+    )
+
+# ==========================================================
+# RESULTADOS
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader(
+    "📚 Locais encontrados"
+)
+
+if resultados:
+
+    for indice, local in enumerate(
+        resultados
+    ):
+
+        st.markdown(
+            '<div class="card">',
+            unsafe_allow_html=True
+        )
+
+        col1, col2 = st.columns(
+            [1, 3]
+        )
+
+        with col1:
+
+            st.markdown(
+                """
+                <div style="
+                    height:140px;
+                    background:#eaf0f6;
+                    border-radius:15px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    font-size:45px;
+                ">
+                📍
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with col2:
+
+            st.markdown(
+                f"""
+                <h2>
+                    {html.escape(local["nome"])}
+                </h2>
+
+                <span class="badge">
+                    {local["categoria"]}
+                </span>
+
+                <p>
+                    {html.escape(local["descricao"])}
+                </p>
+
+                <p>
+                    📍 {
+                        html.escape(
+                            local["endereco"]
+                            or "Endereço não informado"
+                        )
+                    }
+                </p>
+
+                <p>
+                    🕐 {
+                        html.escape(
+                            local["horario"]
+                            or "Horário não informado"
+                        )
+                    }
+                </p>
+
+                <p>
+                    📞 {
+                        html.escape(
+                            local["telefone"]
+                            or "Telefone não informado"
+                        )
+                    }
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
+
+            if st.button(
+                "🤖 Conhecer este local com IA",
+                key=f"ia_{indice}"
+            ):
+
+                with st.spinner(
+                    "🤖 Preparando informações..."
+                ):
+
+                    resposta = perguntar_ia(
+
+                        local,
+
+                        (
+                            "Conte a história deste local "
+                            "e explique sua importância "
+                            "cultural, comercial ou turística. "
+                            "Não invente informações."
+                        )
+
+                    )
+
+                st.info(
+                    resposta
+                )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+else:
+
+    st.warning(
+        "Nenhum ponto encontrado."
+    )
+
+# ==========================================================
+# GRÁFICO
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader(
+    "📊 Dados do mapa"
+)
+
+contagem = {}
+
+for local in resultados:
+
+    categoria = local["categoria"]
+
+    contagem[categoria] = (
+        contagem.get(
+            categoria,
+            0
+        ) + 1
+    )
+
+
+if contagem:
+
+    dados = {
+
+        "Categoria":
+            list(contagem.keys()),
+
+        "Quantidade":
+            list(contagem.values())
+
+    }
+
+    grafico = px.bar(
+
+        dados,
+
+        x="Categoria",
+
+        y="Quantidade",
+
+        color="Categoria",
+
+        title="Locais por categoria"
+
+    )
+
+    grafico.update_layout(
+
+        plot_bgcolor="white",
+
+        paper_bgcolor="white",
+
+        showlegend=False
+
+    )
+
+    st.plotly_chart(
+
+        grafico,
+
+        use_container_width=True
+
+    )
+
+# ==========================================================
+# CADASTRO MANUAL
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader(
+    "➕ Adicionar local"
+)
+
+with st.expander(
+    "Cadastrar um novo local"
+):
+
+    with st.form(
+        "novo_local"
+    ):
+
+        nome = st.text_input(
+            "Nome do local"
+        )
+
+        categoria = st.selectbox(
+
+            "Categoria",
+
+            [
+                "Cultura",
+                "Restaurante",
+                "Loja",
+                "Mercado",
+                "Hotel",
+                "Eventos",
+                "Turismo",
+                "Serviço"
+            ]
+
+        )
+
+        descricao = st.text_area(
+            "Descrição"
+        )
+
+        endereco = st.text_input(
+            "Endereço"
+        )
+
+        telefone = st.text_input(
+            "Telefone"
+        )
+
+        horario = st.text_input(
+            "Horário de funcionamento"
+        )
+
+        site = st.text_input(
+            "Site"
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            latitude = st.number_input(
+                "Latitude",
+                value=DEFAULT_LAT,
+                format="%.6f"
+            )
+
+        with col2:
+
+            longitude = st.number_input(
+                "Longitude",
+                value=DEFAULT_LON,
+                format="%.6f"
+            )
+
+        avaliacao = st.slider(
+
+            "Avaliação",
+
+            0.0,
+
+            5.0,
+
+            5.0,
+
+            0.1
+
+        )
+
+        salvar = st.form_submit_button(
+            "💾 Salvar local"
+        )
+
+        if salvar:
+
+            if not nome:
+
+                st.error(
+                    "Digite o nome do local."
+                )
+
+            else:
+
+                conn = conectar()
+
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    """
+                    INSERT INTO locais
+                    (
+                        nome,
+                        categoria,
+                        descricao,
+                        endereco,
+                        telefone,
+                        horario,
+                        site,
+                        imagem,
+                        latitude,
+                        longitude,
+                        avaliacao,
+                        criado_em
+                    )
+
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+
+                    (
+                        nome,
+                        categoria,
+                        descricao,
+                        endereco,
+                        telefone,
+                        horario,
+                        site,
+                        "",
+                        latitude,
+                        longitude,
+                        avaliacao,
+                        datetime.now().isoformat()
+                    )
+                )
+
+                conn.commit()
+
+                conn.close()
+
+                st.success(
+                    "✅ Local cadastrado!"
+                )
+
+                st.rerun()
+
+# ==========================================================
+# RODAPÉ
+# ==========================================================
+
+st.markdown("---")
+
+st.caption(
+    "🗺️ Mapa Cultural • "
+    "Python + Streamlit + OpenStreetMap + OpenAI"
+)
