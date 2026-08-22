@@ -1,17 +1,21 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
+
 import sqlite3
 import pandas as pd
 import plotly.express as px
+
 from rapidfuzz import fuzz
 
 from datetime import datetime
 import re
 import os
-# ==========================================
-# CONFIGURAÇÃO
-# ==========================================
+
+
+# =====================================
+# CONFIGURAÇÃO STREAMLIT
+# =====================================
 
 st.set_page_config(
     page_title="Mapa Cultural Socorro",
@@ -19,103 +23,139 @@ st.set_page_config(
     layout="wide"
 )
 
-DB_PATH = "database/mapa_socorro.db"
 
-# ==========================================
+# =====================================
 # BANCO DE DADOS
-# ==========================================
+# =====================================
 
-def conectar_db():
-    os.makedirs("database", exist_ok=True)
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+DB_NAME = "mapa_cultural.db"
 
-def criar_tabela():
-    conn = conectar_db()
+
+def conectar():
+    return sqlite3.connect(DB_NAME)
+
+
+def criar_banco():
+
+    conn = conectar()
     cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS locais (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+
         nome TEXT,
         categoria TEXT,
         descricao TEXT,
+        historia TEXT,
+
         endereco TEXT,
         telefone TEXT,
         whatsapp TEXT,
-        horario TEXT,
+
         dias_funcionamento TEXT,
-        historia_cultural TEXT,
+        horario TEXT,
+
         latitude REAL,
         longitude REAL,
-        status_verificado INTEGER DEFAULT 0,
+
+        verificado TEXT,
         data_cadastro TEXT
+
     )
     """)
 
     conn.commit()
     conn.close()
 
-criar_tabela()
 
-# ==========================================
-# FUNÇÕES BANCO
-# ==========================================
+criar_banco()
 
-def adicionar_local(
-    nome,
-    categoria,
-    descricao,
-    endereco,
-    telefone,
-    whatsapp,
-    horario,
-    dias,
-    historia,
-    latitude,
-    longitude
+
+# =====================================
+# INSERIR LOCAL
+# =====================================
+
+def inserir_local(
+        nome,
+        categoria,
+        descricao,
+        historia,
+        endereco,
+        telefone,
+        whatsapp,
+        dias_funcionamento,
+        horario,
+        latitude,
+        longitude,
+        verificado
 ):
 
-    conn = conectar_db()
+    conn = conectar()
     cursor = conn.cursor()
 
     cursor.execute("""
+
     INSERT INTO locais (
+
         nome,
         categoria,
         descricao,
-        endereco,
-        telefone,
-        whatsapp,
-        horario,
-        dias_funcionamento,
-        historia_cultural,
-        latitude,
-        longitude,
-        data_cadastro
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        nome,
-        categoria,
-        descricao,
-        endereco,
-        telefone,
-        whatsapp,
-        horario,
-        dias,
         historia,
+
+        endereco,
+        telefone,
+        whatsapp,
+
+        dias_funcionamento,
+        horario,
+
         latitude,
         longitude,
+
+        verificado,
+        data_cadastro
+
+    )
+
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+    """, (
+
+        nome,
+        categoria,
+        descricao,
+        historia,
+
+        endereco,
+        telefone,
+        whatsapp,
+
+        dias_funcionamento,
+        horario,
+
+        latitude,
+        longitude,
+
+        verificado,
         datetime.now().strftime("%d/%m/%Y %H:%M")
+
     ))
 
     conn.commit()
     conn.close()
 
-def carregar_locais():
-    conn = conectar_db()
 
-    df = pd.read_sql_query(
+# =====================================
+# CARREGAR DADOS
+# =====================================
+
+def carregar_locais():
+
+    conn = conectar()
+
+    df = pd.read_sql(
         "SELECT * FROM locais",
         conn
     )
@@ -124,14 +164,12 @@ def carregar_locais():
 
     return df
 
-# ==========================================
+
+# =====================================
 # BUSCA INTELIGENTE
-# ==========================================
+# =====================================
 
-def buscar_locais(df, termo):
-
-    if not termo:
-        return df
+def buscar_local(termo, df):
 
     resultados = []
 
@@ -139,31 +177,107 @@ def buscar_locais(df, termo):
 
     for _, row in df.iterrows():
 
-        texto = f"""
-        {row['nome']}
-        {row['categoria']}
-        {row['descricao']}
-        {row['endereco']}
-        """
+        nome = str(row["nome"]).lower()
 
-        score = fuzz.partial_ratio(
+        score = fuzz.ratio(
             termo,
-            texto.lower()
+            nome
         )
 
         if score >= 60:
             resultados.append(row)
 
+    if len(resultados) == 0:
+        return pd.DataFrame()
+
     return pd.DataFrame(resultados)
 
-# ==========================================
-# MENU
-# ==========================================
 
-st.sidebar.title("🗺️ Mapa Cultural Socorro")
+# =====================================
+# GERAR KML
+# =====================================
+
+def gerar_kml(df):
+
+    kml = """<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+"""
+
+    for _, row in df.iterrows():
+
+        kml += f"""
+<Placemark>
+    <name>{row['nome']}</name>
+
+    <description>
+        {row['descricao']}
+    </description>
+
+    <Point>
+        <coordinates>
+            {row['longitude']},{row['latitude']},0
+        </coordinates>
+    </Point>
+
+</Placemark>
+"""
+
+    kml += """
+</Document>
+</kml>
+"""
+
+    return kml
+
+
+# =====================================
+# STATUS ABERTO AGORA
+# =====================================
+
+def verificar_status(horario):
+
+    try:
+
+        numeros = re.findall(
+            r"(\d{1,2}):(\d{2})",
+            horario
+        )
+
+        if len(numeros) < 2:
+            return "⚪ Não informado"
+
+        abertura = datetime.strptime(
+            f"{numeros[0][0]}:{numeros[0][1]}",
+            "%H:%M"
+        ).time()
+
+        fechamento = datetime.strptime(
+            f"{numeros[1][0]}:{numeros[1][1]}",
+            "%H:%M"
+        ).time()
+
+        agora = datetime.now().time()
+
+        if abertura <= agora <= fechamento:
+            return "🟢 Aberto"
+
+        return "🔴 Fechado"
+
+    except:
+        return "⚪ Não informado"
+
+
+# =====================================
+# MENU LATERAL
+# =====================================
+
+st.sidebar.title("🗺️ Mapa Cultural")
 
 menu = st.sidebar.radio(
-    "Menu",
+
+    "Navegação",
+
     [
         "Mapa",
         "Cadastrar Local",
@@ -171,85 +285,164 @@ menu = st.sidebar.radio(
         "Exportar"
     ]
 )
-
-# ==========================================
-# MAPA
-# ==========================================
+# =====================================
+# TELA MAPA
+# =====================================
 
 if menu == "Mapa":
 
-    st.title("🗺️ Mapa Cultural de Nossa Senhora do Socorro")
-
-    pesquisa = st.text_input(
-        "Pesquisar local"
-    )
+    st.title("🗺️ Mapa Cultural Socorro")
 
     df = carregar_locais()
 
-    if pesquisa:
-        df = buscar_locais(df, pesquisa)
-
-    mapa = folium.Map(
-        location=[-10.855, -37.126],
-        zoom_start=12
+    busca = st.text_input(
+        "🔍 Buscar local"
     )
 
-    for _, local in df.iterrows():
+    if busca:
 
-        popup = f"""
-        <b>{local['nome']}</b><br>
-        Categoria: {local['categoria']}<br>
-        Horário: {local['horario']}<br>
-        {local['descricao']}
-        """
+        resultado = buscar_local(
+            busca,
+            df
+        )
 
-        folium.Marker(
-            [local['latitude'], local['longitude']],
-            popup=popup
-        ).add_to(mapa)
+        if len(resultado) > 0:
 
-    st_folium(
-        mapa,
-        width=None,
-        height=700
-    )
-    # ==========================================
+            st.success(
+                f"{len(resultado)} resultado(s) encontrado(s)"
+            )
+
+            df = resultado
+
+        else:
+
+            st.warning(
+                "Nenhum local encontrado."
+            )
+
+    if len(df) == 0:
+
+        st.info(
+            "Nenhum local cadastrado."
+        )
+
+    else:
+
+        media_lat = df["latitude"].mean()
+        media_lon = df["longitude"].mean()
+
+        mapa = folium.Map(
+            location=[media_lat, media_lon],
+            zoom_start=13
+        )
+
+        for _, row in df.iterrows():
+
+            status = verificar_status(
+                str(row["horario"])
+            )
+
+            popup = f"""
+            <b>{row['nome']}</b><br>
+
+            Categoria: {row['categoria']}<br>
+
+            {row['descricao']}<br><br>
+
+            📍 {row['endereco']}<br>
+
+            📞 {row['telefone']}<br>
+
+            📱 {row['whatsapp']}<br>
+
+            🕒 {row['horario']}<br>
+
+            {status}
+            """
+
+            folium.Marker(
+
+                [
+                    row["latitude"],
+                    row["longitude"]
+                ],
+
+                popup=folium.Popup(
+                    popup,
+                    max_width=350
+                ),
+
+                tooltip=row["nome"]
+
+            ).add_to(mapa)
+
+        st_folium(
+            mapa,
+            width=1200,
+            height=600
+        )
+
+        st.subheader(
+            "📋 Locais cadastrados"
+        )
+
+        exibir = df.copy()
+
+        colunas = [
+
+            "nome",
+            "categoria",
+            "endereco",
+            "horario",
+            "verificado"
+
+        ]
+
+        st.dataframe(
+            exibir[colunas],
+            use_container_width=True
+        )
+
+
+# =====================================
 # CADASTRAR LOCAL
-# ==========================================
+# =====================================
 
 elif menu == "Cadastrar Local":
 
-    st.title("➕ Cadastrar Novo Local")
+    st.title("➕ Cadastrar Local")
 
-    with st.form("form_cadastro"):
+    with st.form("cadastro_local"):
 
         nome = st.text_input(
-            "Nome do Local *"
+            "Nome do Local"
         )
 
         categoria = st.selectbox(
-            "Categoria *",
+
+            "Categoria",
+
             [
+
+                "Museu",
+                "Teatro",
+                "Biblioteca",
                 "Praça",
                 "Igreja",
-                "Escola",
-                "Hospital",
-                "UBS",
-                "Farmácia",
-                "Comércio",
-                "Restaurante",
+                "Patrimônio Histórico",
+                "Centro Cultural",
                 "Turismo",
-                "Cultura",
-                "Transporte",
                 "Outro"
+
             ]
+
         )
 
         descricao = st.text_area(
             "Descrição"
         )
 
-        historia_cultural = st.text_area(
+        historia = st.text_area(
             "História Cultural"
         )
 
@@ -266,42 +459,47 @@ elif menu == "Cadastrar Local":
         )
 
         dias_funcionamento = st.text_input(
-            "Dias de Funcionamento",
-            placeholder="Ex: Segunda a Sexta"
+            "Dias de funcionamento"
         )
 
         horario = st.text_input(
-            "Horário",
-            placeholder="Ex: 08:00 às 18:00"
+            "Horário (Ex: 08:00 às 18:00)"
         )
 
         col1, col2 = st.columns(2)
 
         with col1:
+
             latitude = st.number_input(
                 "Latitude",
-                value=-10.8550,
                 format="%.6f"
             )
 
         with col2:
+
             longitude = st.number_input(
                 "Longitude",
-                value=-37.1260,
                 format="%.6f"
             )
 
-        verificar = st.checkbox(
-            "Local verificado"
+        verificado = st.selectbox(
+
+            "Verificado",
+
+            [
+                "Sim",
+                "Não"
+            ]
+
         )
 
-        enviar = st.form_submit_button(
+        salvar = st.form_submit_button(
             "💾 Salvar Local"
         )
 
-    if enviar:
+    if salvar:
 
-        if not nome:
+        if nome == "":
 
             st.error(
                 "Informe o nome do local."
@@ -309,632 +507,278 @@ elif menu == "Cadastrar Local":
 
         else:
 
-            conn = conectar_db()
-            cursor = conn.cursor()
+            inserir_local(
 
-            cursor.execute("""
-            INSERT INTO locais (
                 nome,
                 categoria,
                 descricao,
+                historia,
+
                 endereco,
                 telefone,
                 whatsapp,
-                horario,
+
                 dias_funcionamento,
-                historia_cultural,
+                horario,
+
                 latitude,
                 longitude,
-                status_verificado,
-                data_cadastro
+
+                verificado
+
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                nome,
-                categoria,
-                descricao,
-                endereco,
-                telefone,
-                whatsapp,
-                horario,
-                dias_funcionamento,
-                historia_cultural,
-                latitude,
-                longitude,
-                1 if verificar else 0,
-                datetime.now().strftime(
-                    "%d/%m/%Y %H:%M"
-                )
-            ))
-
-            conn.commit()
-            conn.close()
 
             st.success(
-                "✅ Local cadastrado com sucesso!"
+                "Local cadastrado com sucesso."
             )
 
-            st.balloons()
+            st.rerun()
+            # =====================================
+# DASHBOARD
+# =====================================
 
-    st.divider()
+elif menu == "Dashboard":
 
-    st.subheader("📋 Locais Cadastrados")
+    st.title("📊 Dashboard Cultural")
 
     df = carregar_locais()
 
-    if not df.empty:
+    if len(df) == 0:
+
+        st.warning(
+            "Nenhum local cadastrado."
+        )
+
+    else:
+
+        total_locais = len(df)
+
+        total_verificados = len(
+            df[df["verificado"] == "Sim"]
+        )
+
+        total_categorias = (
+            df["categoria"]
+            .nunique()
+        )
+
+        total_historias = len(
+            df[
+                df["historia"]
+                .fillna("")
+                .str.strip() != ""
+            ]
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric(
+                "📍 Locais",
+                total_locais
+            )
+
+        with col2:
+            st.metric(
+                "✅ Verificados",
+                total_verificados
+            )
+
+        with col3:
+            st.metric(
+                "🏷️ Categorias",
+                total_categorias
+            )
+
+        with col4:
+            st.metric(
+                "📚 Histórias",
+                total_historias
+            )
+
+        st.divider()
+
+        categoria_df = (
+            df["categoria"]
+            .value_counts()
+            .reset_index()
+        )
+
+        categoria_df.columns = [
+            "Categoria",
+            "Quantidade"
+        ]
+
+        fig_bar = px.bar(
+            categoria_df,
+            x="Categoria",
+            y="Quantidade",
+            title="Locais por Categoria"
+        )
+
+        st.plotly_chart(
+            fig_bar,
+            use_container_width=True
+        )
+
+        fig_pizza = px.pie(
+            categoria_df,
+            names="Categoria",
+            values="Quantidade",
+            title="Distribuição das Categorias"
+        )
+
+        st.plotly_chart(
+            fig_pizza,
+            use_container_width=True
+        )
+
+        st.subheader(
+            "🏆 Ranking de Categorias"
+        )
+
+        st.dataframe(
+            categoria_df,
+            use_container_width=True
+        )
+
+        st.subheader(
+            "📋 Base Completa"
+        )
 
         st.dataframe(
             df,
             use_container_width=True
         )
 
-    else:
 
-        st.info(
+# =====================================
+# EXPORTAR
+# =====================================
+
+elif menu == "Exportar":
+
+    st.title("📤 Exportação")
+
+    df = carregar_locais()
+
+    if len(df) == 0:
+
+        st.warning(
             "Nenhum local cadastrado."
         )
-        # ==========================================
-        # DASHBOARD
-        # ==========================================
 
-        elif menu == "Dashboard":
+    else:
 
-        st.title("📊 Dashboard Cultural")
+        st.subheader(
+            "📋 Prévia dos Dados"
+        )
 
-        df = carregar_locais()
+        st.dataframe(
+            df,
+            use_container_width=True
+        )
 
-        if df.empty:
+        st.divider()
 
-            st.warning(
-                "Nenhum local cadastrado."
-            )
+        categorias = sorted(
+            df["categoria"]
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        filtro = st.selectbox(
+            "Filtrar Categoria",
+            ["Todas"] + categorias
+        )
+
+        if filtro == "Todas":
+
+            df_export = df
 
         else:
 
-            total_locais = len(df)
-
-            total_verificados = len(
-                df[df["status_verificado"] == 1]
-            )
-
-            total_categorias = (
-                df["categoria"]
-                .nunique()
-            )
-
-            total_com_historia = len(
-                df[
-                    df["historia_cultural"]
-                    .fillna("")
-                    .str.strip() != ""
-                    ]
-            )
-
-            # ==========================
-            # KPIs
-            # ==========================
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                st.metric(
-                    "📍 Locais",
-                    total_locais
-                )
-
-            with col2:
-                st.metric(
-                    "✅ Verificados",
-                    total_verificados
-                )
-
-            with col3:
-                st.metric(
-                    "🏷️ Categorias",
-                    total_categorias
-                )
-
-            with col4:
-                st.metric(
-                    "📚 Histórias",
-                    total_com_historia
-                )
-
-            st.divider()
-
-            # ==========================
-            # GRÁFICO CATEGORIAS
-            # ==========================
-
-            categoria_df = (
-                df["categoria"]
-                .value_counts()
-                .reset_index()
-            )
-
-            categoria_df.columns = [
-                "Categoria",
-                "Quantidade"
+            df_export = df[
+                df["categoria"] == filtro
             ]
 
-            fig_categoria = px.bar(
-                categoria_df,
-                x="Categoria",
-                y="Quantidade",
-                title="Locais por Categoria"
+        st.info(
+            f"{len(df_export)} registro(s) selecionado(s)."
+        )
+
+        st.divider()
+
+        # ==========================
+        # CSV
+        # ==========================
+
+        csv = df_export.to_csv(
+            index=False,
+            encoding="utf-8-sig"
+        )
+
+        st.download_button(
+
+            label="⬇️ Baixar CSV",
+
+            data=csv,
+
+            file_name="mapa_cultural.csv",
+
+            mime="text/csv"
+
+        )
+
+        # ==========================
+        # KML
+        # ==========================
+
+        kml = gerar_kml(
+            df_export
+        )
+
+        st.download_button(
+
+            label="🌍 Baixar KML",
+
+            data=kml,
+
+            file_name="mapa_cultural.kml",
+
+            mime="application/vnd.google-earth.kml+xml"
+
+        )
+
+        st.divider()
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+
+            st.metric(
+                "📍 Registros",
+                len(df_export)
             )
 
-            st.plotly_chart(
-                fig_categoria,
-                use_container_width=True
+        with col2:
+
+            st.metric(
+                "🏷️ Categorias",
+                df_export["categoria"].nunique()
             )
 
-            # ==========================
-            # GRÁFICO PIZZA
-            # ==========================
+        with col3:
 
-            fig_pizza = px.pie(
-                categoria_df,
-                names="Categoria",
-                values="Quantidade",
-                title="Distribuição das Categorias"
-            )
-
-            st.plotly_chart(
-                fig_pizza,
-                use_container_width=True
-            )
-
-            # ==========================
-            # VERIFICADOS
-            # ==========================
-
-            verificados_df = pd.DataFrame(
-                {
-                    "Status": [
-                        "Verificados",
-                        "Não Verificados"
-                    ],
-                    "Quantidade": [
-                        total_verificados,
-                        total_locais - total_verificados
+            st.metric(
+                "✅ Verificados",
+                len(
+                    df_export[
+                        df_export["verificado"] == "Sim"
                     ]
-                }
+                )
             )
 
-            fig_verificados = px.pie(
-                verificados_df,
-                names="Status",
-                values="Quantidade",
-                title="Status dos Locais"
-            )
-
-            st.plotly_chart(
-                fig_verificados,
-                use_container_width=True
-            )
-
-            st.divider()
-
-            # ==========================
-            # TOP CATEGORIAS
-            # ==========================
-
-            st.subheader(
-                "🏆 Ranking de Categorias"
-            )
-
-            ranking = (
-                df["categoria"]
-                .value_counts()
-                .reset_index()
-            )
-
-            ranking.columns = [
-                "Categoria",
-                "Quantidade"
-            ]
-
-            st.dataframe(
-                ranking,
-                use_container_width=True
-            )
-
-            st.divider()
-
-            # ==========================
-            # ÚLTIMOS CADASTROS
-            # ==========================
-
-            st.subheader(
-                "🕒 Últimos Locais Cadastrados"
-            )
-
-            try:
-
-                ultimos = (
-                    df.sort_values(
-                        by="id",
-                        ascending=False
-                    )
-                    .head(10)
-                )
-
-                st.dataframe(
-                    ultimos[
-                        [
-                            "nome",
-                            "categoria",
-                            "data_cadastro"
-                        ]
-                    ],
-                    use_container_width=True
-                )
-
-            except:
-
-                st.dataframe(
-                    df.head(10),
-                    use_container_width=True
-                )
-
-            st.divider()
-
-            # ==========================
-            # TABELA COMPLETA
-            # ==========================
-
-            st.subheader(
-                "📋 Base Completa"
-            )
-
-            st.dataframe(
-                df,
-                use_container_width=True
-            )
-            # ==========================================
-            # EXPORTAR
-            # ==========================================
-
-            elif menu == "Exportar":
-
-            st.title("📤 Exportação de Dados")
-
-            df = carregar_locais()
-
-            if df.empty:
-
-                st.warning(
-                    "Nenhum local cadastrado para exportar."
-                )
-
-            else:
-
-                st.subheader("📋 Prévia dos Dados")
-
-                st.dataframe(
-                    df,
-                    use_container_width=True
-                )
-
-                st.divider()
-
-                # ==========================
-                # FILTRO POR CATEGORIA
-                # ==========================
-
-                categorias = sorted(
-                    df["categoria"]
-                    .dropna()
-                    .unique()
-                    .tolist()
-                )
-
-                categoria_escolhida = st.selectbox(
-                    "Filtrar Categoria",
-                    ["Todas"] + categorias
-                )
-
-                if categoria_escolhida != "Todas":
-
-                    df_export = df[
-                        df["categoria"]
-                        == categoria_escolhida
-                        ]
-
-                else:
-
-                    df_export = df
-
-                st.info(
-                    f"{len(df_export)} registros selecionados."
-                )
-
-                st.divider()
-
-                # ==========================
-                # EXPORTAÇÃO CSV
-                # ==========================
-
-                csv = df_export.to_csv(
-                    index=False,
-                    encoding="utf-8-sig"
-                )
-
-                st.download_button(
-                    label="⬇️ Baixar CSV",
-                    data=csv,
-                    file_name="mapa_cultural_socorro.csv",
-                    mime="text/csv"
-                )
-
-                st.success(
-                    "CSV pronto para importar no Excel, LibreOffice e Google Sheets."
-                )
-
-                st.divider()
-
-                # ==========================
-                # ESTATÍSTICAS EXPORTAÇÃO
-                # ==========================
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.metric(
-                        "📍 Registros",
-                        len(df_export)
-                    )
-
-                with col2:
-                    st.metric(
-                        "🏷️ Categorias",
-                        df_export["categoria"].nunique()
-                    )
-
-                with col3:
-                    st.metric(
-                        "✅ Verificados",
-                        len(
-                            df_export[
-                                df_export["status_verificado"] == 1
-                                ]
-                        )
-                    )
-
-                st.divider()
-
-                st.subheader(
-                    "📄 Campos Exportados"
-                )
-
-                st.write(
-                    list(df_export.columns)
-                )
-
-
-                # ==========================================
-                # EXPORTAÇÃO KML
-                # ==========================================
-
-                def gerar_kml(df):
-
-                    kml = """<?xml version="1.0" encoding="UTF-8"?>
-                <kml xmlns="http://www.opengis.net/kml/2.2">
-                <Document>
-
-                <name>Mapa Cultural Socorro</name>
-
-                """
-
-                    for _, local in df.iterrows():
-
-                        nome = str(local.get("nome", "Sem Nome"))
-                        categoria = str(local.get("categoria", "Outro"))
-                        descricao = str(local.get("descricao", ""))
-                        historia = str(local.get("historia_cultural", ""))
-                        endereco = str(local.get("endereco", ""))
-                        telefone = str(local.get("telefone", ""))
-                        horario = str(local.get("horario", ""))
-                        latitude = local.get("latitude")
-                        longitude = local.get("longitude")
-
-                        if pd.isna(latitude) or pd.isna(longitude):
-                            continue
-
-                        popup_html = f"""
-                        <![CDATA[
-                        <h2>{nome}</h2>
-
-                        <b>Categoria:</b> {categoria}<br>
-
-                        <b>Endereço:</b> {endereco}<br>
-
-                        <b>Telefone:</b> {telefone}<br>
-
-                        <b>Horário:</b> {horario}<br><br>
-
-                        <b>Descrição:</b><br>
-                        {descricao}<br><br>
-
-                        <b>História Cultural:</b><br>
-                        {historia}
-                        ]]>
-                        """
-
-                        placemark = f"""
-                        <Placemark>
-
-                            <name>{nome}</name>
-
-                            <description>
-                                {popup_html}
-                            </description>
-
-                            <Point>
-                                <coordinates>
-                                    {longitude},{latitude},0
-                                </coordinates>
-                            </Point>
-
-                        </Placemark>
-                        """
-
-                        kml += placemark
-
-                    kml += """
-                </Document>
-                </kml>
-                """
-
-                    return kml
-
-
-                # ==========================================
-                # STATUS ABERTO AGORA
-                # ==========================================
-
-                def verificar_status(horario):
-
-                    if not horario:
-                        return "⚪ Horário não informado"
-
-                    try:
-
-                        horario = horario.strip()
-
-                        padrao = r"(\d{2}:\d{2})\s*(?:às|-)\s*(\d{2}:\d{2})"
-
-                        resultado = re.search(
-                            padrao,
-                            horario
-                        )
-
-                        if not resultado:
-                            return "⚪ Horário inválido"
-
-                        abertura = resultado.group(1)
-                        fechamento = resultado.group(2)
-
-                        agora = datetime.now().time()
-
-                        hora_abertura = datetime.strptime(
-                            abertura,
-                            "%H:%M"
-                        ).time()
-
-                        hora_fechamento = datetime.strptime(
-                            fechamento,
-                            "%H:%M"
-                        ).time()
-
-                        if hora_abertura <= agora <= hora_fechamento:
-
-                            minutos_restantes = (
-                                                        datetime.combine(
-                                                            datetime.today(),
-                                                            hora_fechamento
-                                                        )
-                                                        -
-                                                        datetime.combine(
-                                                            datetime.today(),
-                                                            agora
-                                                        )
-                                                ).seconds // 60
-
-                            if minutos_restantes <= 60:
-                                return (
-                                    f"🟡 Fecha em "
-                                    f"{minutos_restantes} min"
-                                )
-
-                            return (
-                                f"🟢 Aberto até "
-                                f"{fechamento}"
-                            )
-
-                        return "🔴 Fechado"
-
-                    except Exception:
-
-                        return "⚪ Horário inválido"
-# ==========================================
-# HISTÓRIA CULTURAL AUTOMÁTICA
-# ==========================================
-
-def gerar_historia_cultural(nome, categoria):
-
-    historias = {
-
-        "Praça": f"""
-        {nome} é um espaço público de convivência social,
-        utilizado pela população para lazer, encontros,
-        eventos comunitários e atividades culturais.
-        As praças desempenham papel importante na
-        identidade urbana e na memória coletiva.
-        """,
-
-        "Igreja": f"""
-        {nome} representa um importante ponto de fé,
-        tradição religiosa e encontro da comunidade.
-        Igrejas costumam preservar elementos históricos,
-        culturais e arquitetônicos relevantes para a cidade.
-        """,
-
-        "Escola": f"""
-        {nome} contribui para o desenvolvimento educacional
-        da população, formando cidadãos e promovendo
-        conhecimento para as futuras gerações.
-        """,
-
-        "Hospital": f"""
-        {nome} possui importância social por oferecer
-        atendimento à saúde da população e contribuir
-        para o bem-estar da comunidade local.
-        """,
-
-        "UBS": f"""
-        {nome} atua na atenção básica à saúde,
-        sendo fundamental para prevenção de doenças,
-        vacinação e acompanhamento da população.
-        """,
-
-        "Farmácia": f"""
-        {nome} presta serviços essenciais relacionados
-        à saúde, fornecendo medicamentos e orientações
-        para a população.
-        """,
-
-        "Comércio": f"""
-        {nome} participa da economia local,
-        gerando empregos, renda e movimentando
-        as atividades comerciais da região.
-        """,
-
-        "Turismo": f"""
-        {nome} apresenta potencial turístico e cultural,
-        podendo atrair visitantes interessados na história,
-        cultura e características locais.
-        """,
-
-        "Cultura": f"""
-        {nome} contribui para a preservação e valorização
-        das manifestações culturais da comunidade.
-        """,
-
-        "Transporte": f"""
-        {nome} desempenha papel importante na mobilidade
-        urbana e na integração entre diferentes regiões.
-        """
-    }
-
-    return historias.get(
-        categoria,
-        f"""
-        {nome} é um local de interesse para a comunidade,
-        contribuindo para o desenvolvimento social,
-        econômico ou cultural da região.
-        """
-    )
+        st.success(
+            "Exportação pronta para Excel, Google Sheets, Google Earth e My Maps."
+        )
