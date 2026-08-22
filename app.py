@@ -535,13 +535,52 @@ def criar_kml(pontos):
     return "\n".join(partes)
 
 
+# ==========================================================
+# SERGIA — INTELIGÊNCIA ARTIFICIAL
+# ==========================================================
+
+def obter_chave_openrouter():
+    """
+    Obtém a chave da OpenRouter.
+
+    Prioridade:
+    1. Streamlit Secrets
+    2. Variável de ambiente
+    """
+
+    # Tenta pegar dos Secrets do Streamlit
+    try:
+        chave = st.secrets.get("OPENROUTER_API_KEY")
+
+        if chave:
+            return str(chave).strip()
+
+    except Exception:
+        pass
+
+    # Fallback para variável de ambiente
+    chave = os.getenv("OPENROUTER_API_KEY")
+
+    if chave:
+        return chave.strip()
+
+    return None
+
+
 def perguntar_ia(local, pergunta):
+    """
+    Envia uma pergunta sobre o local para a SergIA.
+    """
+
     chave = obter_chave_openrouter()
 
     if not chave:
         return (
-            "⚠️ A SergIA ainda não está configurada.\n\n"
-            "Coloque sua OPENROUTER_API_KEY nos Secrets do Streamlit."
+            "⚠️ **A SergIA ainda não está configurada.**\n\n"
+            "Adicione sua chave da OpenRouter aos Secrets do Streamlit "
+            "com o nome:\n\n"
+            "`OPENROUTER_API_KEY`\n\n"
+            "Depois reinicie o aplicativo."
         )
 
     try:
@@ -549,57 +588,192 @@ def perguntar_ia(local, pergunta):
 
         client = OpenAI(
             api_key=chave,
-            base_url="https://openrouter.ai/api/v1"
+            base_url="https://openrouter.ai/api/v1",
         )
 
         contexto = f"""
-Nome: {local.get('nome', '')}
-Categoria: {local.get('categoria', '')}
-Descrição: {local.get('descricao', '')}
-Endereço: {local.get('endereco', '')}
-Telefone: {local.get('telefone', '')}
-Horário: {local.get('horario', '')}
-Site: {local.get('site', '')}
-Fonte: {local.get('fonte', '')}
-Latitude: {local.get('latitude', '')}
-Longitude: {local.get('longitude', '')}
+Nome: {local.get('nome', 'Não informado')}
+Categoria: {local.get('categoria', 'Não informado')}
+Descrição: {local.get('descricao', 'Não informado')}
+Endereço: {local.get('endereco', 'Não informado')}
+Telefone: {local.get('telefone', 'Não informado')}
+Horário: {local.get('horario', 'Não informado')}
+Site: {local.get('site', 'Não informado')}
+Fonte: {local.get('fonte', 'Não informado')}
+Latitude: {local.get('latitude', 'Não informado')}
+Longitude: {local.get('longitude', 'Não informado')}
 """
 
         instrucoes = """
-Você é a SergIA, assistente cultural e informativa de Nossa Senhora do Socorro-SE.
+Você é a SergIA, assistente virtual do
+Mapa de Nossa Senhora do Socorro, Sergipe.
 
-Responda em português do Brasil.
+Sua função é ajudar visitantes a entender os locais
+apresentados no mapa.
 
-Regras:
-1. Não invente fatos.
-2. Diferencie dados do OpenStreetMap, cadastro manual e informações históricas.
-3. Quando não houver informação suficiente, diga isso claramente.
-4. Não trate um cadastro do mapa como prova de que um estabelecimento está funcionando atualmente.
-5. Ao falar de um estabelecimento, use primeiro os dados fornecidos pelo mapa.
-6. Seja clara, curta e amigável.
-7. O projeto abrange todo o município de Nossa Senhora do Socorro, Sergipe.
+Responda sempre em português do Brasil.
+
+REGRAS IMPORTANTES:
+
+1. Não invente informações.
+2. Use primeiro os dados fornecidos pelo mapa.
+3. Se uma informação não estiver disponível, diga:
+   "Essa informação não está disponível nos dados do mapa."
+4. Não invente telefone, endereço, horário, preço,
+   história ou funcionamento de estabelecimentos.
+5. Diferencie informações provenientes do OpenStreetMap
+   de informações cadastradas manualmente.
+6. Um ponto no mapa não significa necessariamente que
+   o estabelecimento esteja funcionando atualmente.
+7. Seja objetiva, clara e amigável.
+8. Quando a pergunta não puder ser respondida com os
+   dados disponíveis, deixe isso claro.
 """
 
         prompt = f"""
 DADOS DO LOCAL:
+
 {contexto}
 
-PERGUNTA:
+PERGUNTA DO VISITANTE:
+
 {pergunta}
 """
 
         resposta = client.chat.completions.create(
             model="openrouter/free",
             messages=[
-                {"role": "system", "content": instrucoes},
-                {"role": "user", "content": prompt}
-            ]
+                {
+                    "role": "system",
+                    "content": instrucoes,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
         )
 
-        return resposta.choices[0].message.content
+        if not resposta.choices:
+            return "⚠️ A SergIA não recebeu uma resposta do modelo."
+
+        texto = resposta.choices[0].message.content
+
+        if not texto:
+            return "⚠️ A SergIA retornou uma resposta vazia."
+
+        return texto.strip()
+
+    except ImportError:
+        return (
+            "❌ A biblioteca `openai` não está instalada.\n\n"
+            "Adicione `openai` ao seu `requirements.txt`."
+        )
 
     except Exception as e:
-        return f"❌ Erro ao consultar a SergIA:\n\n{e}"
+        return (
+            "❌ **Não foi possível consultar a SergIA.**\n\n"
+            f"Detalhes: `{str(e)}`"
+        )
+
+
+# ==========================================================
+# SERGIA — INTERFACE
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader("🤖 SergIA — Assistente de Nossa Senhora do Socorro")
+
+st.write(
+    "Pergunte sobre um local do mapa ou sobre informações "
+    "gerais relacionadas ao município."
+)
+
+if resultados:
+
+    local_nomes = [
+        local["nome"]
+        for local in resultados
+    ]
+
+    local_escolhido = st.selectbox(
+        "Escolha um local",
+        local_nomes,
+        key="sergia_local",
+    )
+
+    local_ia = next(
+        (
+            local
+            for local in resultados
+            if local["nome"] == local_escolhido
+        ),
+        resultados[0],
+    )
+
+else:
+
+    local_ia = {
+        "nome": "Nossa Senhora do Socorro",
+        "categoria": "Município",
+        "descricao": "Município de Sergipe.",
+        "endereco": "Nossa Senhora do Socorro-SE",
+        "telefone": "",
+        "horario": "",
+        "site": "",
+        "latitude": DEFAULT_LAT,
+        "longitude": DEFAULT_LON,
+        "fonte": "Projeto",
+    }
+
+
+pergunta = st.text_area(
+    "O que você quer saber?",
+    placeholder=(
+        "Ex: O que é este local? "
+        "Quais informações estão disponíveis? "
+        "Qual é a categoria deste ponto?"
+    ),
+    key="sergia_pergunta",
+)
+
+
+if st.button(
+    "🤖 Perguntar à SergIA",
+    type="primary",
+    key="botao_sergia",
+):
+
+    if not pergunta.strip():
+
+        st.warning(
+            "Digite uma pergunta antes de consultar a SergIA."
+        )
+
+    else:
+
+        with st.spinner(
+            "🤖 SergIA está preparando a resposta..."
+        ):
+
+            resposta = perguntar_ia(
+                local_ia,
+                pergunta,
+            )
+
+        st.markdown(
+            """
+            <div class="history-box">
+                <h3>🤖 SergIA</h3>
+                Assistente cultural e informativa de
+                Nossa Senhora do Socorro
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(resposta)
 
 
 # ==========================================================
