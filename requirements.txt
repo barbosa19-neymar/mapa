@@ -1,7 +1,7 @@
 streamlit
 folium
-streamlit-folium
 requests
-pandas
+streamlit-folium
 plotly
+pandas
 openai
