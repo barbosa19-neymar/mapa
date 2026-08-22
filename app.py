@@ -24,7 +24,7 @@ st.set_page_config(
 
 
 # ==========================================================
-# CONFIGURAÇÕES GERAIS
+# CONFIGURAÇÕES
 # ==========================================================
 
 DEFAULT_LAT = -10.855
@@ -72,7 +72,6 @@ st.markdown(
             #173b57,
             #256d8f
         );
-
         color: white;
         padding: 25px;
         border-radius: 16px;
@@ -92,7 +91,6 @@ st.markdown(
             #102f45,
             #176b91
         );
-
         color: white;
         padding: 25px;
         border-radius: 18px;
@@ -103,6 +101,28 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+
+# ==========================================================
+# CATEGORIAS
+# ==========================================================
+
+CATEGORIAS = [
+    "Comércio",
+    "Alimentação",
+    "Mercado",
+    "Saúde",
+    "Educação",
+    "Religião",
+    "Cultura",
+    "Turismo e lazer",
+    "Esporte",
+    "Serviço",
+    "Hotel",
+    "Transporte",
+    "Órgão público",
+    "Outro",
+]
 
 
 # ==========================================================
@@ -149,10 +169,7 @@ def criar_banco():
         """
     )
 
-    # ======================================================
-    # MIGRAÇÃO DE BANCOS ANTIGOS
-    # ======================================================
-
+    # Migração de bancos antigos
     colunas = {
         row[1]
         for row in cursor.execute(
@@ -161,7 +178,6 @@ def criar_banco():
     }
 
     if "fonte" not in colunas:
-
         cursor.execute(
             """
             ALTER TABLE locais
@@ -171,7 +187,6 @@ def criar_banco():
         )
 
     if "imagem" not in colunas:
-
         cursor.execute(
             """
             ALTER TABLE locais
@@ -187,29 +202,7 @@ criar_banco()
 
 
 # ==========================================================
-# CATEGORIAS
-# ==========================================================
-
-CATEGORIAS = [
-    "Comércio",
-    "Alimentação",
-    "Mercado",
-    "Saúde",
-    "Educação",
-    "Religião",
-    "Cultura",
-    "Turismo e lazer",
-    "Esporte",
-    "Serviço",
-    "Hotel",
-    "Transporte",
-    "Órgão público",
-    "Outro",
-]
-
-
-# ==========================================================
-# CLASSIFICAÇÃO DOS LOCAIS DO OSM
+# CLASSIFICAÇÃO OSM
 # ==========================================================
 
 def classificar_categoria(tags):
@@ -222,13 +215,13 @@ def classificar_categoria(tags):
     office = tags.get("office", "")
     craft = tags.get("craft", "")
     railway = tags.get("railway", "")
-    public_transport = tags.get(
-        "public_transport",
-        ""
-    )
+    public_transport = tags.get("public_transport", "")
     building = tags.get("building", "")
 
-    # Saúde
+    # ------------------------------------------------------
+    # SAÚDE
+    # ------------------------------------------------------
+
     if healthcare:
         return "Saúde"
 
@@ -243,7 +236,10 @@ def classificar_categoria(tags):
     }:
         return "Saúde"
 
-    # Educação
+    # ------------------------------------------------------
+    # EDUCAÇÃO
+    # ------------------------------------------------------
+
     if amenity in {
         "school",
         "kindergarten",
@@ -255,7 +251,10 @@ def classificar_categoria(tags):
     if tags.get("education"):
         return "Educação"
 
-    # Religião
+    # ------------------------------------------------------
+    # RELIGIÃO
+    # ------------------------------------------------------
+
     if amenity in {
         "place_of_worship",
         "monastery",
@@ -272,39 +271,59 @@ def classificar_categoria(tags):
     }:
         return "Religião"
 
-    # Alimentação
+    # ------------------------------------------------------
+    # ALIMENTAÇÃO
+    # ------------------------------------------------------
+
     if amenity in {
         "restaurant",
         "cafe",
         "fast_food",
         "food_court",
         "ice_cream",
+        "bar",
+        "pub",
     }:
         return "Alimentação"
 
-    # Mercado
+    # ------------------------------------------------------
+    # MERCADO
+    # ------------------------------------------------------
+
     if shop in {
         "supermarket",
         "convenience",
         "greengrocer",
         "bakery",
+        "butcher",
+        "market",
     }:
         return "Mercado"
 
-    # Comércio
+    # ------------------------------------------------------
+    # COMÉRCIO
+    # ------------------------------------------------------
+
     if shop:
         return "Comércio"
 
-    # Hotel
+    # ------------------------------------------------------
+    # HOTEL
+    # ------------------------------------------------------
+
     if tourism in {
         "hotel",
         "guest_house",
         "hostel",
         "motel",
+        "camp_site",
     }:
         return "Hotel"
 
-    # Cultura
+    # ------------------------------------------------------
+    # CULTURA
+    # ------------------------------------------------------
+
     if tourism in {
         "museum",
         "gallery",
@@ -322,35 +341,57 @@ def classificar_categoria(tags):
     }:
         return "Cultura"
 
-    # Lazer
+    # ------------------------------------------------------
+    # ESPORTE
+    # ------------------------------------------------------
+
     if leisure in {
-        "park",
         "sports_centre",
         "stadium",
         "pitch",
-        "playground",
         "fitness_centre",
         "swimming_pool",
+        "track",
+        "sports_hall",
+    }:
+        return "Esporte"
+
+    # ------------------------------------------------------
+    # TURISMO E LAZER
+    # ------------------------------------------------------
+
+    if leisure in {
+        "park",
+        "playground",
+        "nature_reserve",
+        "garden",
+        "marina",
     }:
         return "Turismo e lazer"
 
-    # Transporte
-    if (
-        amenity in {
-            "bus_station",
-            "bus_stop",
-            "taxi",
-        }
-        or public_transport
-        or railway
-    ):
+    # ------------------------------------------------------
+    # TRANSPORTE
+    # ------------------------------------------------------
+
+    if amenity in {
+        "bus_station",
+        "bus_stop",
+        "taxi",
+        "fuel",
+        "car_wash",
+    }:
         return "Transporte"
 
-    # Serviços
-    if office or craft:
-        return "Serviço"
+    if public_transport:
+        return "Transporte"
 
-    # Órgão público
+    if railway:
+        return "Transporte"
+
+    # ------------------------------------------------------
+    # ÓRGÃO PÚBLICO
+    # ------------------------------------------------------
+
     if amenity in {
         "townhall",
         "police",
@@ -360,6 +401,17 @@ def classificar_categoria(tags):
         "government",
     }:
         return "Órgão público"
+
+    # ------------------------------------------------------
+    # SERVIÇOS
+    # ------------------------------------------------------
+
+    if office or craft:
+        return "Serviço"
+
+    # ------------------------------------------------------
+    # OUTRO
+    # ------------------------------------------------------
 
     return "Outro"
 
@@ -389,7 +441,7 @@ def montar_endereco(tags):
 
 
 # ==========================================================
-# DESCRIÇÃO AUTOMÁTICA
+# DESCRIÇÃO OSM
 # ==========================================================
 
 def gerar_descricao_osm(
@@ -424,92 +476,122 @@ def gerar_descricao_osm(
 
 
 # ==========================================================
-# OPENSTREETMAP / OVERPASS
+# CONSULTA OPENSTREETMAP
+# ==========================================================
+
+def consultar_overpass(query):
+
+    resposta = requests.post(
+        OVERPASS_URL,
+        data=query,
+        timeout=180,
+        headers={
+            "User-Agent":
+            "MapaNossaSenhoraSocorro/1.0"
+        },
+    )
+
+    resposta.raise_for_status()
+
+    return resposta.json()
+
+
+# ==========================================================
+# BUSCAR LOCAIS NO OSM
 # ==========================================================
 
 def buscar_locais_osm():
 
+    # ------------------------------------------------------
+    # PRIMEIRA TENTATIVA:
+    # ÁREA ADMINISTRATIVA
+    # ------------------------------------------------------
+
     query_area = """
-    [out:json][timeout:120];
+    [out:json][timeout:180];
 
     area
         ["name"="Nossa Senhora do Socorro"]
         ["boundary"="administrative"]
-        ["admin_level"="6"]
         ->.socorro;
 
     (
-      nwr(area.socorro)["name"]["shop"];
-      nwr(area.socorro)["name"]["amenity"];
-      nwr(area.socorro)["name"]["healthcare"];
-      nwr(area.socorro)["name"]["tourism"];
-      nwr(area.socorro)["name"]["leisure"];
-      nwr(area.socorro)["name"]["office"];
-      nwr(area.socorro)["name"]["craft"];
-      nwr(area.socorro)["name"]["public_transport"];
-      nwr(area.socorro)["name"]["railway"];
+        nwr(area.socorro)["name"]["shop"];
+        nwr(area.socorro)["name"]["amenity"];
+        nwr(area.socorro)["name"]["healthcare"];
+        nwr(area.socorro)["name"]["tourism"];
+        nwr(area.socorro)["name"]["leisure"];
+        nwr(area.socorro)["name"]["office"];
+        nwr(area.socorro)["name"]["craft"];
+        nwr(area.socorro)["name"]["public_transport"];
+        nwr(area.socorro)["name"]["railway"];
     );
 
     out center tags;
     """
 
+    # ------------------------------------------------------
+    # SEGUNDA TENTATIVA:
+    # RAIO
+    # ------------------------------------------------------
+
     query_raio = f"""
-    [out:json][timeout:120];
+    [out:json][timeout:180];
 
     (
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["shop"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["shop"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["amenity"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["amenity"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["healthcare"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["healthcare"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["tourism"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["tourism"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["leisure"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["leisure"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["office"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["office"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["craft"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["craft"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["public_transport"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["public_transport"];
 
-      nwr(
-        around:{RAIO_METROS},
-        {DEFAULT_LAT},
-        {DEFAULT_LON}
-      )["name"]["railway"];
+        nwr(
+            around:{RAIO_METROS},
+            {DEFAULT_LAT},
+            {DEFAULT_LON}
+        )["name"]["railway"];
     );
 
     out center tags;
@@ -517,193 +599,313 @@ def buscar_locais_osm():
 
     try:
 
-        resposta = requests.post(
-            OVERPASS_URL,
-            data=query_area,
-            timeout=150,
-            headers={
-                "User-Agent":
-                "MapaNossaSenhoraSocorro/1.0"
-            },
+        dados = consultar_overpass(
+            query_area
         )
-
-        resposta.raise_for_status()
-
-        dados = resposta.json()
-
-        # ==================================================
-        # FALLBACK
-        # ==================================================
 
         if not dados.get("elements"):
 
-            resposta = requests.post(
-                OVERPASS_URL,
-                data=query_raio,
-                timeout=150,
-                headers={
-                    "User-Agent":
-                    "MapaNossaSenhoraSocorro/1.0"
-                },
+            dados = consultar_overpass(
+                query_raio
             )
 
-            resposta.raise_for_status()
+    except Exception:
 
-            dados = resposta.json()
+        # Se o OSM falhar, não retorna erro
+        # e não apaga os dados antigos.
+        return []
 
-        locais = []
+    locais = []
 
-        # ==================================================
-        # PROCESSAR RESULTADOS
-        # ==================================================
+    for item in dados.get(
+        "elements",
+        []
+    ):
 
-        for item in dados.get(
-            "elements",
-            []
-        ):
+        tags = item.get(
+            "tags",
+            {}
+        )
 
-            tags = item.get(
-                "tags",
+        nome = tags.get(
+            "name"
+        )
+
+        if not nome:
+            continue
+
+        latitude = item.get(
+            "lat"
+        )
+
+        longitude = item.get(
+            "lon"
+        )
+
+        # Way/relation
+        if latitude is None:
+
+            centro = item.get(
+                "center",
                 {}
             )
 
-            nome = tags.get("name")
-
-            if not nome:
-                continue
-
-            latitude = item.get(
+            latitude = centro.get(
                 "lat"
             )
 
-            longitude = item.get(
+            longitude = centro.get(
                 "lon"
             )
 
-            # Ways/relations usam center
-            if latitude is None:
+        if (
+            latitude is None
+            or longitude is None
+        ):
+            continue
 
-                center = item.get(
-                    "center",
-                    {}
-                )
-
-                latitude = center.get(
-                    "lat"
-                )
-
-                longitude = center.get(
-                    "lon"
-                )
-
-            if (
-                latitude is None
-                or longitude is None
-            ):
-                continue
-
-            categoria = classificar_categoria(
-                tags
-            )
-
-            local = {
-
-                "nome": nome,
-
-                "categoria": categoria,
-
-                "descricao":
-                    gerar_descricao_osm(
-                        nome,
-                        categoria,
-                        tags,
-                    ),
-
-                "endereco":
-                    montar_endereco(
-                        tags
-                    ),
-
-                "telefone":
-                    tags.get(
-                        "phone",
-                        ""
-                    ),
-
-                "horario":
-                    tags.get(
-                        "opening_hours",
-                        ""
-                    ),
-
-                "site":
-                    tags.get(
-                        "website",
-                        ""
-                    ),
-
-                "imagem":
-                    tags.get(
-                        "image",
-                        ""
-                    ),
-
-                "latitude":
-                    float(latitude),
-
-                "longitude":
-                    float(longitude),
-
-                "avaliacao": 0,
-
-                "fonte":
-                    "OpenStreetMap",
-            }
-
-            locais.append(local)
-
-        # ==================================================
-        # REMOVER DUPLICADOS
-        # ==================================================
-
-        unicos = {}
-
-        for local in locais:
-
-            chave = (
-                local["nome"]
-                .lower()
-                .strip(),
-
-                round(
-                    local["latitude"],
-                    5,
-                ),
-
-                round(
-                    local["longitude"],
-                    5,
-                ),
-            )
-
-            unicos[chave] = local
-
-        return list(
-            unicos.values()
+        categoria = classificar_categoria(
+            tags
         )
 
-    except Exception as e:
+        local = {
 
-        st.warning(
-            "Não foi possível carregar os "
-            "pontos do OpenStreetMap neste momento."
+            "nome": nome,
+
+            "categoria":
+                categoria,
+
+            "descricao":
+                gerar_descricao_osm(
+                    nome,
+                    categoria,
+                    tags,
+                ),
+
+            "endereco":
+                montar_endereco(
+                    tags
+                ),
+
+            "telefone":
+                tags.get(
+                    "phone",
+                    ""
+                ),
+
+            "horario":
+                tags.get(
+                    "opening_hours",
+                    ""
+                ),
+
+            "site":
+                tags.get(
+                    "website",
+                    ""
+                ),
+
+            "imagem":
+                tags.get(
+                    "image",
+                    ""
+                ),
+
+            "latitude":
+                float(latitude),
+
+            "longitude":
+                float(longitude),
+
+            "avaliacao":
+                0,
+
+            "fonte":
+                "OpenStreetMap",
+        }
+
+        locais.append(
+            local
         )
 
-        return []
+    # ------------------------------------------------------
+    # REMOVER DUPLICADOS
+    # ------------------------------------------------------
+
+    unicos = {}
+
+    for local in locais:
+
+        chave = (
+
+            local["nome"]
+            .lower()
+            .strip(),
+
+            round(
+                local["latitude"],
+                5,
+            ),
+
+            round(
+                local["longitude"],
+                5,
+            ),
+        )
+
+        unicos[chave] = local
+
+    return list(
+        unicos.values()
+    )
 
 
 # ==========================================================
-# CARREGAR BANCO
+# SALVAR PONTOS OSM NO BANCO
+# ==========================================================
+
+def salvar_locais_osm(
+    locais_osm
+):
+
+    if not locais_osm:
+        return
+
+    conn = conectar()
+    cursor = conn.cursor()
+
+    for local in locais_osm:
+
+        nome = local.get(
+            "nome",
+            ""
+        )
+
+        latitude = local.get(
+            "latitude"
+        )
+
+        longitude = local.get(
+            "longitude"
+        )
+
+        if (
+            not nome
+            or latitude is None
+            or longitude is None
+        ):
+            continue
+
+        # Verifica se já existe pelo nome
+        # e localização aproximada.
+        cursor.execute(
+            """
+            SELECT id
+            FROM locais
+            WHERE
+                LOWER(nome) = LOWER(?)
+                AND ABS(latitude - ?) < 0.0001
+                AND ABS(longitude - ?) < 0.0001
+            LIMIT 1
+            """,
+            (
+                nome,
+                latitude,
+                longitude,
+            ),
+        )
+
+        existente = cursor.fetchone()
+
+        if existente:
+            continue
+
+        cursor.execute(
+            """
+            INSERT INTO locais (
+                nome,
+                categoria,
+                descricao,
+                endereco,
+                telefone,
+                horario,
+                site,
+                imagem,
+                latitude,
+                longitude,
+                avaliacao,
+                fonte,
+                criado_em
+            )
+            VALUES (
+                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?,
+                ?, ?, ?
+            )
+            """,
+            (
+                local.get(
+                    "nome",
+                    ""
+                ),
+
+                local.get(
+                    "categoria",
+                    "Outro"
+                ),
+
+                local.get(
+                    "descricao",
+                    ""
+                ),
+
+                local.get(
+                    "endereco",
+                    ""
+                ),
+
+                local.get(
+                    "telefone",
+                    ""
+                ),
+
+                local.get(
+                    "horario",
+                    ""
+                ),
+
+                local.get(
+                    "site",
+                    ""
+                ),
+
+                local.get(
+                    "imagem",
+                    ""
+                ),
+
+                latitude,
+
+                longitude,
+
+                local.get(
+                    "avaliacao",
+                    0
+                ),
+
+                "OpenStreetMap",
+
+                datetime.now()
+                .isoformat(),
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+
+
+# ==========================================================
+# CARREGAR LOCAIS DO BANCO
 # ==========================================================
 
 def carregar_locais_banco():
@@ -715,6 +917,7 @@ def carregar_locais_banco():
     cursor.execute(
         """
         SELECT
+            id,
             nome,
             categoria,
             descricao,
@@ -742,39 +945,44 @@ def carregar_locais_banco():
         locais.append(
             {
 
-                "nome": linha[0],
+                "_id":
+                    linha[0],
 
-                "categoria": linha[1],
+                "nome":
+                    linha[1],
+
+                "categoria":
+                    linha[2],
 
                 "descricao":
-                    linha[2] or "",
-
-                "endereco":
                     linha[3] or "",
 
-                "telefone":
+                "endereco":
                     linha[4] or "",
 
-                "horario":
+                "telefone":
                     linha[5] or "",
 
-                "site":
+                "horario":
                     linha[6] or "",
 
-                "imagem":
+                "site":
                     linha[7] or "",
 
-                "latitude":
-                    linha[8],
+                "imagem":
+                    linha[8] or "",
 
-                "longitude":
+                "latitude":
                     linha[9],
 
+                "longitude":
+                    linha[10],
+
                 "avaliacao":
-                    linha[10] or 0,
+                    linha[11] or 0,
 
                 "fonte":
-                    linha[11]
+                    linha[12]
                     or "Cadastro manual",
             }
         )
@@ -783,29 +991,45 @@ def carregar_locais_banco():
 
 
 # ==========================================================
-# CACHE DOS PONTOS
+# CARREGAR TODOS OS PONTOS
 # ==========================================================
 
 @st.cache_data(ttl=600)
 def carregar_pontos():
 
-    locais_osm = buscar_locais_osm()
+    # ------------------------------------------------------
+    # Primeiro tenta atualizar o OSM.
+    # Se falhar, continua usando o banco.
+    # ------------------------------------------------------
 
-    locais_banco = carregar_locais_banco()
+    try:
 
-    return locais_osm + locais_banco
+        locais_osm = buscar_locais_osm()
+
+        if locais_osm:
+
+            salvar_locais_osm(
+                locais_osm
+            )
+
+    except Exception:
+
+        pass
+
+    # ------------------------------------------------------
+    # Agora sempre carrega do banco.
+    # ------------------------------------------------------
+
+    return carregar_locais_banco()
 
 
 # ==========================================================
-# SERGIA — CHAVE OPENROUTER
+# SERGIA — CHAVE
 # ==========================================================
 
 def obter_chave_openrouter():
 
-    # ======================================================
-    # PRIMEIRO: STREAMLIT SECRETS
-    # ======================================================
-
+    # Streamlit Secrets
     try:
 
         chave = st.secrets.get(
@@ -822,10 +1046,7 @@ def obter_chave_openrouter():
 
         pass
 
-    # ======================================================
-    # SEGUNDO: VARIÁVEL DE AMBIENTE
-    # ======================================================
-
+    # Variável de ambiente
     chave = os.getenv(
         "OPENROUTER_API_KEY"
     )
@@ -838,7 +1059,7 @@ def obter_chave_openrouter():
 
 
 # ==========================================================
-# SERGIA — CONSULTAR IA
+# SERGIA — IA
 # ==========================================================
 
 def perguntar_ia(
@@ -865,106 +1086,56 @@ def perguntar_ia(
             base_url="https://openrouter.ai/api/v1",
         )
 
-        # ==================================================
-        # CONTEXTO DO LOCAL
-        # ==================================================
-
         contexto = f"""
-Nome: {local.get(
-    'nome',
-    'Não informado'
-)}
+Nome: {local.get('nome', 'Não informado')}
 
-Categoria: {local.get(
-    'categoria',
-    'Não informado'
-)}
+Categoria: {local.get('categoria', 'Não informado')}
 
-Descrição: {local.get(
-    'descricao',
-    'Não informado'
-)}
+Descrição: {local.get('descricao', 'Não informado')}
 
-Endereço: {local.get(
-    'endereco',
-    'Não informado'
-)}
+Endereço: {local.get('endereco', 'Não informado')}
 
-Telefone: {local.get(
-    'telefone',
-    'Não informado'
-)}
+Telefone: {local.get('telefone', 'Não informado')}
 
-Horário: {local.get(
-    'horario',
-    'Não informado'
-)}
+Horário: {local.get('horario', 'Não informado')}
 
-Site: {local.get(
-    'site',
-    'Não informado'
-)}
+Site: {local.get('site', 'Não informado')}
 
-Fonte: {local.get(
-    'fonte',
-    'Não informado'
-)}
+Fonte: {local.get('fonte', 'Não informado')}
 
-Latitude: {local.get(
-    'latitude',
-    'Não informado'
-)}
+Latitude: {local.get('latitude', 'Não informado')}
 
-Longitude: {local.get(
-    'longitude',
-    'Não informado'
-)}
+Longitude: {local.get('longitude', 'Não informado')}
 """
-
-        # ==================================================
-        # INSTRUÇÕES DA SERGIA
-        # ==================================================
 
         instrucoes = """
 Você é a SergIA, assistente virtual do
-Mapa de Nossa Senhora do Socorro, Sergipe.
+Mapa de Nossa Senhora do Socorro-SE.
 
-Responda sempre em português do Brasil.
-
-Sua função é ajudar moradores e visitantes
-a entender os locais apresentados no mapa.
+Responda em português do Brasil.
 
 REGRAS:
 
-1. Não invente informações.
+1. Não invente fatos.
 
-2. Use primeiro os dados fornecidos
-   pelo mapa.
+2. Use os dados do local fornecidos pelo mapa.
 
 3. Se uma informação não estiver disponível,
-   diga claramente que ela não está disponível.
+   diga claramente que não está disponível.
 
-4. Não invente telefone, endereço,
-   horário, preço, funcionamento,
-   história ou características de um local.
+4. Não invente telefone, endereço, horário,
+   preço ou funcionamento.
 
-5. Diferencie dados do OpenStreetMap,
-   cadastro manual e informações fornecidas
-   pelo projeto.
+5. Um local cadastrado no mapa não significa
+   necessariamente que esteja funcionando
+   atualmente.
 
-6. Um ponto no mapa não significa que o
-   estabelecimento esteja funcionando atualmente.
+6. Diferencie dados do OpenStreetMap,
+   cadastro manual e informações do projeto.
 
-7. Seja clara, objetiva e amigável.
+7. Seja objetiva, clara e amigável.
 
-8. Se não puder responder com os dados
-   disponíveis, diga isso.
-
-9. Não apresente suposições como fatos.
-
-10. Quando fizer sentido, explique ao visitante
-    quais informações disponíveis no mapa podem
-    ser úteis.
+8. Não apresente suposições como fatos.
 """
 
         prompt = f"""
@@ -972,15 +1143,10 @@ DADOS DO LOCAL:
 
 {contexto}
 
-
-PERGUNTA DO VISITANTE:
+PERGUNTA:
 
 {pergunta}
 """
-
-        # ==================================================
-        # CHAMADA OPENROUTER
-        # ==================================================
 
         resposta = client.chat.completions.create(
 
@@ -990,29 +1156,21 @@ PERGUNTA DO VISITANTE:
 
                 {
                     "role": "system",
-                    "content":
-                        instrucoes,
+                    "content": instrucoes,
                 },
 
                 {
                     "role": "user",
-                    "content":
-                        prompt,
+                    "content": prompt,
                 },
-
             ],
-
         )
-
-        # ==================================================
-        # VALIDAR RESPOSTA
-        # ==================================================
 
         if not resposta.choices:
 
             return (
                 "⚠️ A SergIA não recebeu "
-                "uma resposta do modelo."
+                "uma resposta."
             )
 
         texto = (
@@ -1034,17 +1192,15 @@ PERGUNTA DO VISITANTE:
     except ImportError:
 
         return (
-            "❌ A biblioteca `openai` não está "
-            "instalada.\n\n"
-            "Adicione `openai` ao "
-            "`requirements.txt`."
+            "❌ A biblioteca `openai` não está instalada.\n\n"
+            "Adicione `openai` ao requirements.txt."
         )
 
-    except Exception as e:
+    except Exception as erro:
 
         return (
-            "❌ **Não foi possível consultar a SergIA.**\n\n"
-            f"Erro: `{str(e)}`"
+            "❌ **Erro ao consultar a SergIA.**\n\n"
+            f"`{str(erro)}`"
         )
 
 
@@ -1061,56 +1217,53 @@ def criar_dataframe_exportacao(
     for local in pontos:
 
         if (
-            local.get("latitude")
-            is None
-            or local.get("longitude")
-            is None
+            local.get("latitude") is None
+            or local.get("longitude") is None
         ):
             continue
 
         linhas.append(
             {
-
                 "Nome":
                     local.get(
                         "nome",
-                        "",
+                        ""
                     ),
 
                 "Categoria":
                     local.get(
                         "categoria",
-                        "",
+                        ""
                     ),
 
                 "Descrição":
                     local.get(
                         "descricao",
-                        "",
+                        ""
                     ),
 
                 "Endereço":
                     local.get(
                         "endereco",
-                        "",
+                        ""
                     ),
 
                 "Telefone":
                     local.get(
                         "telefone",
-                        "",
+                        ""
                     ),
 
                 "Horário":
                     local.get(
                         "horario",
-                        "",
+                        ""
                     ),
 
                 "Site":
                     local.get(
                         "site",
-                        "",
+                        ""
                     ),
 
                 "Latitude":
@@ -1126,7 +1279,7 @@ def criar_dataframe_exportacao(
                 "Fonte":
                     local.get(
                         "fonte",
-                        "",
+                        ""
                     ),
             }
         )
@@ -1137,7 +1290,7 @@ def criar_dataframe_exportacao(
 
 
 # ==========================================================
-# EXPORTAÇÃO KML
+# KML
 # ==========================================================
 
 def criar_kml(
@@ -1179,7 +1332,7 @@ def criar_kml(
             str(
                 local.get(
                     "nome",
-                    "",
+                    ""
                 )
             )
         )
@@ -1188,34 +1341,23 @@ def criar_kml(
             str(
                 local.get(
                     "categoria",
-                    "",
+                    ""
                 )
             )
         )
 
         descricao = xml_escape(
             (
-                f"Categoria: "
-                f"{local.get('categoria', '')}\n"
-
-                f"Endereço: "
-                f"{local.get('endereco', '')}\n"
-
-                f"Telefone: "
-                f"{local.get('telefone', '')}\n"
-
-                f"Horário: "
-                f"{local.get('horario', '')}\n"
-
-                f"Fonte: "
-                f"{local.get('fonte', '')}"
+                f"Categoria: {local.get('categoria', '')}\n"
+                f"Endereço: {local.get('endereco', '')}\n"
+                f"Telefone: {local.get('telefone', '')}\n"
+                f"Horário: {local.get('horario', '')}\n"
+                f"Fonte: {local.get('fonte', '')}"
             )
         )
 
         partes.extend(
-
             [
-
                 "<Placemark>",
 
                 f"<name>{nome}</name>",
@@ -1261,7 +1403,7 @@ def criar_kml(
 
 
 # ==========================================================
-# INICIAR PONTOS
+# CARREGAR PONTOS
 # ==========================================================
 
 locais = carregar_pontos()
@@ -1298,12 +1440,9 @@ st.sidebar.title(
 )
 
 
-categorias_disponiveis = sorted(
-    set(
-        local["categoria"]
-        for local in locais
-    )
-)
+# IMPORTANTE:
+# Todas as categorias continuam disponíveis.
+categorias_disponiveis = CATEGORIAS.copy()
 
 
 categorias_selecionadas = (
@@ -1313,8 +1452,7 @@ categorias_selecionadas = (
 
         categorias_disponiveis,
 
-        default=
-            categorias_disponiveis,
+        default=categorias_disponiveis,
     )
 )
 
@@ -1324,11 +1462,9 @@ st.sidebar.markdown(
 )
 
 
-mostrar_mapa = (
-    st.sidebar.checkbox(
-        "🗺️ Mostrar mapa",
-        True,
-    )
+mostrar_mapa = st.sidebar.checkbox(
+    "🗺️ Mostrar mapa",
+    True,
 )
 
 
@@ -1348,17 +1484,17 @@ st.sidebar.markdown(
 
 st.sidebar.info(
     """
-    📍 **Dados dos locais**
+    📍 **Dados**
 
-    OpenStreetMap + cadastros do projeto
+    OpenStreetMap + cadastro manual
+
+    🤖 **IA**
+
+    SergIA
 
     🗺️ **Exportação**
 
-    CSV/KML para Google My Maps
-
-    🤖 **Inteligência Artificial**
-
-    SergIA
+    CSV e KML
     """
 )
 
@@ -1407,47 +1543,44 @@ resultados = []
 
 for local in locais:
 
+    # Categoria
     if (
         categorias_selecionadas
-        and local["categoria"]
+        and local.get("categoria")
         not in categorias_selecionadas
     ):
         continue
 
     texto = " ".join(
-
         [
-
             str(
                 local.get(
                     "nome",
-                    "",
+                    ""
                 )
             ),
 
             str(
                 local.get(
                     "categoria",
-                    "",
+                    ""
                 )
             ),
 
             str(
                 local.get(
                     "descricao",
-                    "",
+                    ""
                 )
             ),
 
             str(
                 local.get(
                     "endereco",
-                    "",
+                    ""
                 )
             ),
-
         ]
-
     ).lower()
 
     if (
@@ -1483,7 +1616,6 @@ if pesquisar and termo:
     )
 
     conn.commit()
-
     conn.close()
 
 
@@ -1512,7 +1644,7 @@ with col2:
             [
                 x
                 for x in resultados
-                if x["categoria"]
+                if x.get("categoria")
                 == "Comércio"
             ]
         ),
@@ -1527,7 +1659,7 @@ with col3:
             [
                 x
                 for x in resultados
-                if x["categoria"]
+                if x.get("categoria")
                 == "Saúde"
             ]
         ),
@@ -1542,7 +1674,7 @@ with col4:
             [
                 x
                 for x in resultados
-                if x["categoria"]
+                if x.get("categoria")
                 == "Educação"
             ]
         ),
@@ -1671,15 +1803,17 @@ if mostrar_mapa:
 
     for local in resultados:
 
+        latitude = local.get(
+            "latitude"
+        )
+
+        longitude = local.get(
+            "longitude"
+        )
+
         if (
-            local.get(
-                "latitude"
-            )
-            is None
-            or local.get(
-                "longitude"
-            )
-            is None
+            latitude is None
+            or longitude is None
         ):
             continue
 
@@ -1688,7 +1822,7 @@ if mostrar_mapa:
             str(
                 local.get(
                     "nome",
-                    "",
+                    ""
                 )
             )
         )
@@ -1698,7 +1832,7 @@ if mostrar_mapa:
             str(
                 local.get(
                     "categoria",
-                    "",
+                    ""
                 )
             )
         )
@@ -1708,7 +1842,7 @@ if mostrar_mapa:
             str(
                 local.get(
                     "descricao",
-                    "",
+                    ""
                 )
             )
         )
@@ -1751,7 +1885,7 @@ if mostrar_mapa:
             str(
                 local.get(
                     "fonte",
-                    "",
+                    ""
                 )
             )
         )
@@ -1785,15 +1919,12 @@ if mostrar_mapa:
 
 
         popup = f"""
-
         <div style="
             width:290px;
             font-family:Arial;
         ">
 
-            <h3 style="
-                color:#173b57;
-            ">
+            <h3 style="color:#173b57;">
                 {nome}
             </h3>
 
@@ -1826,49 +1957,51 @@ if mostrar_mapa:
             </small>
 
         </div>
-
         """
 
 
         folium.Marker(
 
             location=[
-                local["latitude"],
-                local["longitude"],
+                latitude,
+                longitude,
             ],
 
-            tooltip=
-                local["nome"],
+            tooltip=local.get(
+                "nome",
+                "Local"
+            ),
 
-            popup=
-                folium.Popup(
-                    popup,
-                    max_width=350,
+            popup=folium.Popup(
+                popup,
+                max_width=350,
+            ),
+
+            icon=folium.Icon(
+
+                color=cores.get(
+                    local.get(
+                        "categoria",
+                        "Outro"
+                    ),
+                    "blue",
                 ),
 
-            icon=
-                folium.Icon(
-
-                    color=
-                        cores.get(
-                            local["categoria"],
-                            "blue",
-                        ),
-
-                    icon=
-                        icones.get(
-                            local["categoria"],
-                            "map-marker",
-                        ),
+                icon=icones.get(
+                    local.get(
+                        "categoria",
+                        "Outro"
+                    ),
+                    "map-marker",
                 ),
+            ),
         ).add_to(mapa)
 
 
         pontos_bounds.append(
-
             [
-                local["latitude"],
-                local["longitude"],
+                latitude,
+                longitude,
             ]
         )
 
@@ -1880,12 +2013,11 @@ if mostrar_mapa:
         )
 
 
-    # ======================================================
+    # ------------------------------------------------------
     # LEGENDA
-    # ======================================================
+    # ------------------------------------------------------
 
     legenda = """
-
     <div style="
         position: fixed;
         bottom: 30px;
@@ -1900,28 +2032,20 @@ if mostrar_mapa:
         box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     ">
 
-        <b>🗺️ Legenda</b>
-
-        <br><br>
+        <b>🗺️ Legenda</b><br><br>
 
         🔵 Comércio<br>
-
         🔴 Alimentação<br>
-
         🟢 Mercado<br>
-
         🩷 Saúde<br>
-
         🔷 Educação<br>
-
         🟣 Religião/Cultura<br>
-
+        🟢 Esporte<br>
         🟠 Serviços<br>
-
-        ⚫ Transporte
+        ⚫ Transporte<br>
+        🟤 Órgão público
 
     </div>
-
     """
 
 
@@ -1933,13 +2057,9 @@ if mostrar_mapa:
 
 
     st_folium(
-
         mapa,
-
         width=None,
-
         height=650,
-
         returned_objects=[],
     )
 
@@ -1956,10 +2076,11 @@ st.subheader(
     "📥 Exportar para Google My Maps"
 )
 
+
 st.write(
-    "Baixe os pontos do mapa e importe "
-    "o arquivo em uma camada do "
-    "Google My Maps."
+    "Baixe os pontos encontrados e "
+    "importe o arquivo em uma camada "
+    "do Google My Maps."
 )
 
 
@@ -1983,7 +2104,9 @@ with col_csv:
             index=False,
             encoding="utf-8-sig",
         )
-        .encode("utf-8-sig")
+        .encode(
+            "utf-8-sig"
+        )
     )
 
 
@@ -1993,8 +2116,10 @@ with col_csv:
 
         data=csv_bytes,
 
-        file_name=
-            "mapa_nossa_senhora_do_socorro.csv",
+        file_name=(
+            "mapa_nossa_senhora_"
+            "do_socorro.csv"
+        ),
 
         mime="text/csv",
 
@@ -2013,16 +2138,19 @@ with col_kml:
 
         "🌎 Baixar KML para My Maps",
 
-        data=
-            kml_texto.encode(
-                "utf-8"
-            ),
+        data=kml_texto.encode(
+            "utf-8"
+        ),
 
-        file_name=
-            "mapa_nossa_senhora_do_socorro.kml",
+        file_name=(
+            "mapa_nossa_senhora_"
+            "do_socorro.kml"
+        ),
 
-        mime=
-            "application/vnd.google-earth.kml+xml",
+        mime=(
+            "application/vnd.google-earth."
+            "kml+xml"
+        ),
 
         use_container_width=True,
     )
@@ -2071,11 +2199,9 @@ if resultados:
 
             with col1:
 
-                imagem = (
-                    local.get(
-                        "imagem",
-                        ""
-                    )
+                imagem = local.get(
+                    "imagem",
+                    ""
                 )
 
 
@@ -2135,7 +2261,10 @@ if resultados:
                     <h2>
                         {html.escape(
                             str(
-                                local["nome"]
+                                local.get(
+                                    "nome",
+                                    ""
+                                )
                             )
                         )}
                     </h2>
@@ -2143,7 +2272,10 @@ if resultados:
                     <span class="badge">
                         {html.escape(
                             str(
-                                local["categoria"]
+                                local.get(
+                                    "categoria",
+                                    "Outro"
+                                )
                             )
                         )}
                     </span>
@@ -2151,65 +2283,60 @@ if resultados:
                     <p>
                         {html.escape(
                             str(
-                                local["descricao"]
+                                local.get(
+                                    "descricao",
+                                    ""
+                                )
                             )
                         )}
                     </p>
 
                     <p>
-                        📍 {
-                            html.escape(
-                                str(
-                                    local.get(
-                                        "endereco"
-                                    )
-                                    or
-                                    "Endereço não informado"
+                        📍 {html.escape(
+                            str(
+                                local.get(
+                                    "endereco"
                                 )
+                                or
+                                "Endereço não informado"
                             )
-                        }
+                        )}
                     </p>
 
                     <p>
-                        🕐 {
-                            html.escape(
-                                str(
-                                    local.get(
-                                        "horario"
-                                    )
-                                    or
-                                    "Horário não informado"
+                        🕐 {html.escape(
+                            str(
+                                local.get(
+                                    "horario"
                                 )
+                                or
+                                "Horário não informado"
                             )
-                        }
+                        )}
                     </p>
 
                     <p>
-                        📞 {
-                            html.escape(
-                                str(
-                                    local.get(
-                                        "telefone"
-                                    )
-                                    or
-                                    "Telefone não informado"
+                        📞 {html.escape(
+                            str(
+                                local.get(
+                                    "telefone"
                                 )
+                                or
+                                "Telefone não informado"
                             )
-                        }
+                        )}
                     </p>
 
                     <small>
                         Fonte:
-                        {
-                            html.escape(
-                                str(
-                                    local.get(
-                                        "fonte",
-                                        ""
-                                    )
+                        {html.escape(
+                            str(
+                                local.get(
+                                    "fonte",
+                                    ""
                                 )
                             )
-                        }
+                        )}
                     </small>
                     """,
 
@@ -2243,7 +2370,7 @@ if resultados:
 
                     "🤖 Conhecer este local com SergIA",
 
-                    key=f"ia_{indice}",
+                    key=f"ia_local_{indice}",
 
                 ):
 
@@ -2303,14 +2430,15 @@ contagem = {}
 
 for local in resultados:
 
-    categoria = (
-        local["categoria"]
+    categoria = local.get(
+        "categoria",
+        "Outro"
     )
 
     contagem[categoria] = (
         contagem.get(
             categoria,
-            0,
+            0
         )
         + 1
     )
@@ -2392,9 +2520,7 @@ with st.expander(
 
 
         categoria = st.selectbox(
-
             "Categoria",
-
             CATEGORIAS,
         )
 
@@ -2436,55 +2562,34 @@ with st.expander(
 
         with col1:
 
-            latitude = (
-                st.number_input(
-
-                    "Latitude",
-
-                    value=
-                        DEFAULT_LAT,
-
-                    format="%.6f",
-                )
+            latitude = st.number_input(
+                "Latitude",
+                value=DEFAULT_LAT,
+                format="%.6f",
             )
 
 
         with col2:
 
-            longitude = (
-                st.number_input(
-
-                    "Longitude",
-
-                    value=
-                        DEFAULT_LON,
-
-                    format="%.6f",
-                )
+            longitude = st.number_input(
+                "Longitude",
+                value=DEFAULT_LON,
+                format="%.6f",
             )
 
 
         avaliacao = st.slider(
-
             "Avaliação",
-
             0.0,
-
             5.0,
-
             0.0,
-
             0.1,
         )
 
 
-        salvar = (
-            st.form_submit_button(
-
-                "💾 Salvar local",
-
-                type="primary",
-            )
+        salvar = st.form_submit_button(
+            "💾 Salvar local",
+            type="primary",
         )
 
 
@@ -2502,12 +2607,9 @@ with st.expander(
 
                 cursor = conn.cursor()
 
-
                 cursor.execute(
-
                     """
                     INSERT INTO locais (
-
                         nome,
                         categoria,
                         descricao,
@@ -2521,60 +2623,38 @@ with st.expander(
                         avaliacao,
                         fonte,
                         criado_em
-
                     )
-
                     VALUES (
                         ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?,
                         ?, ?, ?
                     )
                     """,
-
                     (
-
                         nome.strip(),
-
                         categoria,
-
                         descricao,
-
                         endereco,
-
                         telefone,
-
                         horario,
-
                         site,
-
                         imagem,
-
                         latitude,
-
                         longitude,
-
                         avaliacao,
-
                         "Cadastro manual",
-
-                        datetime.now()
-                        .isoformat(),
+                        datetime.now().isoformat(),
                     ),
                 )
 
-
                 conn.commit()
-
                 conn.close()
 
-
                 carregar_pontos.clear()
-
 
                 st.success(
                     "✅ Local cadastrado!"
                 )
-
 
                 st.rerun()
 
@@ -2599,8 +2679,8 @@ st.markdown(
         </p>
 
         <p>
-        Pergunte sobre os locais apresentados
-        no mapa ou sobre os dados disponíveis.
+        Pergunte sobre qualquer local
+        apresentado no mapa.
         </p>
 
     </div>
@@ -2612,43 +2692,34 @@ st.markdown(
 if resultados:
 
     local_nomes = [
-        local["nome"]
+        local.get(
+            "nome",
+            "Local"
+        )
         for local in resultados
     ]
 
 
-    local_escolhido = (
-        st.selectbox(
-
-            "📍 Escolha um local",
-
-            local_nomes,
-
-            key="sergia_local",
-        )
+    local_escolhido = st.selectbox(
+        "📍 Escolha um local",
+        local_nomes,
+        key="sergia_local",
     )
 
 
     local_ia = next(
-
         (
-
             local
-
             for local in resultados
-
-            if local["nome"]
+            if local.get("nome")
             == local_escolhido
-
         ),
-
         resultados[0],
     )
 
 else:
 
     local_ia = {
-
         "nome":
             "Nossa Senhora do Socorro",
 
@@ -2682,25 +2753,18 @@ else:
 
 
 pergunta = st.text_area(
-
     "💬 O que você quer saber?",
-
     placeholder=(
-        "Ex: O que é este local? "
-        "Qual é a categoria dele? "
+        "Ex: Qual é a categoria deste local? "
         "Quais informações estão disponíveis?"
     ),
-
     key="sergia_pergunta",
 )
 
 
 if st.button(
-
     "🤖 Perguntar à SergIA",
-
     type="primary",
-
     key="botao_sergia",
 ):
 
@@ -2717,9 +2781,7 @@ if st.button(
         ):
 
             resposta = perguntar_ia(
-
                 local_ia,
-
                 pergunta,
             )
 
@@ -2736,7 +2798,6 @@ if st.button(
 
             </div>
             """,
-
             unsafe_allow_html=True,
         )
 
@@ -2760,34 +2821,23 @@ st.subheader(
 
 
 st.markdown(
-
     """
     <div class="source-box">
 
     <b>Dados do mapa:</b><br>
 
     • OpenStreetMap / Overpass API<br>
-
-    • Locais cadastrados manualmente
-    no projeto<br><br>
-
+    • Locais armazenados no SQLite<br>
+    • Locais cadastrados manualmente<br><br>
 
     <b>Ferramentas:</b><br>
 
     • Python<br>
-
     • Streamlit<br>
-
     • Folium<br>
-
     • SQLite<br>
-
     • Plotly<br>
-
-    • Google My Maps para
-    visualização/importação dos
-    arquivos exportados<br><br>
-
+    • Google My Maps<br><br>
 
     <b>Inteligência artificial:</b><br>
 
@@ -2795,7 +2845,6 @@ st.markdown(
 
     </div>
     """,
-
     unsafe_allow_html=True,
 )
 
