@@ -535,30 +535,22 @@ def criar_kml(pontos):
     return "\n".join(partes)
 
 
-# ==========================================================
-# SERGIA
-# ==========================================================
-
-def obter_chave_openai():
-    try:
-        return st.secrets["OPENAI_API_KEY"]
-    except Exception:
-        return os.environ.get("OPENAI_API_KEY")
-
-
 def perguntar_ia(local, pergunta):
-    chave = obter_chave_openai()
+    chave = obter_chave_openrouter()
 
     if not chave:
         return (
             "⚠️ A SergIA ainda não está configurada.\n\n"
-            "Coloque sua OPENAI_API_KEY nos Secrets do Streamlit."
+            "Coloque sua OPENROUTER_API_KEY nos Secrets do Streamlit."
         )
 
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=chave)
+        client = OpenAI(
+            api_key=chave,
+            base_url="https://openrouter.ai/api/v1"
+        )
 
         contexto = f"""
 Nome: {local.get('nome', '')}
@@ -596,13 +588,15 @@ PERGUNTA:
 {pergunta}
 """
 
-        resposta = client.responses.create(
-            model="gpt-5.6",
-            instructions=instrucoes,
-            input=prompt,
+        resposta = client.chat.completions.create(
+            model="openrouter/free",
+            messages=[
+                {"role": "system", "content": instrucoes},
+                {"role": "user", "content": prompt}
+            ]
         )
 
-        return resposta.output_text
+        return resposta.choices[0].message.content
 
     except Exception as e:
         return f"❌ Erro ao consultar a SergIA:\n\n{e}"
